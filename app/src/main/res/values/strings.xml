@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FXXK</string>
+    <string name="tab_home">首页</string>
+    <string name="search_hint">搜索片名、演员</string>
+    <string name="settings">设置</string>
+    <string name="cache_title">我的缓存</string>
+    <string name="cache_short">缓存</string>
+    <string name="history">历史</string>
+    <string name="history_title">播放历史</string>
+    <string name="source">片源</string>
+    <string name="loading">加载中…</string>
+    <string name="empty">没有内容</string>
+    <string name="error_net">网络出错，换个源再试</string>
+    <string name="play">播放</string>
+    <string name="download">缓存</string>
+    <string name="downloading">缓存中</string>
+    <string name="downloaded">已缓存，可离线看</string>
+
+    <!-- 桌面悬浮窗 -->
+    <string name="overlay_channel">缓存进度</string>
+    <string name="overlay_channel_desc">缓存还在跑的时候，在这里显示进度</string>
+    <string name="overlay_section">桌面悬浮窗</string>
+    <string name="overlay_section_desc">缓存进度是一颗蜘蛛，浮在桌面上。开始基本透明，随进度被淡蓝色从下往上填满；下完了整只变蓝，像呼吸灯一样明灭十几秒。\n\n退到后台、刷别的 App 都看得见。长按蜘蛛能展开看百分比和速度。</string>
+    <string name="overlay_on">已开启 ✓&#10;（点这里看怎么关）</string>
+    <string name="overlay_off">去开启</string>
+    <string name="overlay_ask_title">开一下「桌面悬浮窗」吧</string>
+    <string name="overlay_ask_body">开了之后，退到桌面、刷别的 App，也能看见缓存下到哪儿了 —— 一颗蜘蛛随进度被淡蓝色填满，下完了会像呼吸灯一样闪。\n\n需要你在接下来的系统页面里允许 FXXK「显示在其他应用上层」。\n\n不放心可以先点取消，进度在「我的缓存」页面里照样能看。</string>
+    <string name="overlay_perm_tip_title">开启桌面悬浮窗</string>
+    <string name="overlay_perm_tip_body">接下来会跳到系统页面，找到「FXXK」并打开「允许显示在其他应用上层」，回来就能用了。</string>
+    <string name="overlay_already_title">已经开着</string>
+    <string name="overlay_already_body">系统已经允许 FXXK「显示在其他应用上层」，缓存一开始蜘蛛就会自己浮出来。\n\n长按蜘蛛可以展开成详细进度（百分比 + 速度）。\n\n想关掉的话，去「设置 → 应用 → FXXK → 显示在其他应用上层」关掉就行。</string>
+
+</resources>

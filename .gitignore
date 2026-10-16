@@ -1,0 +1,21 @@
+# Local Android SDK configuration
+local.properties
+
+# Gradle and build outputs
+.gradle/
+**/build/
+*.apk
+*.aab
+
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Signing credentials
+keystore/
+*.jks
+*.keystore
+.env
+.env.*

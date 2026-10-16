@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通知栏小图标。系统只取它的「形状」当剪影（Android 5+ 一律染成白色），
+  所以这里填什么颜色都无所谓，画清楚形状就行。
+  一个向下的箭头 + 一条底线 = 下载。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11,3h2v7h3.6L12,16.2L7.4,10H11V3z" />
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,18h14v2H5z" />
+</vector>

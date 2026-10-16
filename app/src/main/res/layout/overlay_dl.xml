@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面悬浮窗（App 外面那个）。
+
+  默认就是一颗**蜘蛛**（②ovBall）—— 它随缓存进度被淡蓝色一格一格填满，
+  下完变成呼吸灯。平时只有它，屏幕上就一小块淡蓝，不挡事。
+
+  长按可以切到 ①ovPill 那个胶囊：标题 + 百分比 + 进度条 + 速度。
+  想精确知道「还剩多少 / 多快」的时候用得上。
+
+  为什么放一个容器里切换、而不是两个窗口：WindowManager 上挂的窗口越少越稳，
+  切换形态只要拨一下 visibility，位置也还留在一块儿，不用重新算坐标。
+
+  胶囊最右边那个「—」是收回蜘蛛的按钮 —— 长按也能切，但长按不好发现，两个都留着。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ovRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!-- ① 胶囊（默认收起，长按展开） -->
+    <LinearLayout
+        android:id="@+id/ovPill"
+        android:layout_width="214dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_overlay_pill"
+        android:orientation="vertical"
+        android:paddingLeft="13dp"
+        android:paddingTop="9dp"
+        android:paddingRight="9dp"
+        android:paddingBottom="9dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/oTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/oPercent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:minWidth="46dp"
+                android:gravity="right"
+                android:textColor="@color/text"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/oFold"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_marginLeft="4dp"
+                android:gravity="center"
+                android:text="—"
+                android:textColor="@color/text_dim"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/oBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="7dp"
+            android:layout_marginRight="4dp"
+            android:max="100"
+            android:progressDrawable="@drawable/progress_bar" />
+
+        <TextView
+            android:id="@+id/oDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:layout_marginRight="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_dim"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- ② 蜘蛛（默认形态）。全自绘：见 SpiderView -->
+    <com.laoyang.jingying.ui.SpiderView
+        android:id="@+id/ovBall"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:visibility="visible" />
+
+</FrameLayout>

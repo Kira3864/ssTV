@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面悬浮窗「胶囊」形态的底板（长按蜘蛛才会展开的那个）。
+  做得比较不透：它压在别人的 App 上，背景可能是任何颜色，太透会看不清字。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#F7161B22" />
+    <corners android:radius="14dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#59334050" />
+</shape>
