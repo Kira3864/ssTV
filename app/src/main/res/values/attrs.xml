@@ -1,0 +1,15 @@
+<resources>
+    <attr name="appBg" format="color" />
+    <attr name="appSurface" format="color" />
+    <attr name="appSurfaceAlt" format="color" />
+    <attr name="appAccent" format="color" />
+    <attr name="appAccentDim" format="color" />
+    <attr name="appText" format="color" />
+    <attr name="appTextMuted" format="color" />
+    <attr name="appDivider" format="color" />
+    <attr name="appSuccess" format="color" />
+    <attr name="appOnAccent" format="color" />
+    <attr name="appGlow" format="color" />
+    <attr name="appCorner" format="dimension" />
+    <attr name="appPillCorner" format="dimension" />
+</resources>

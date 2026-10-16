@@ -56,7 +56,8 @@ import java.net.URL
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-class PlayerActivity : AppCompatActivity() {
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+class PlayerActivity : ThemedActivity() {
 
     private lateinit var view: PlayerView
     private lateinit var player: ExoPlayer
@@ -231,6 +232,8 @@ class PlayerActivity : AppCompatActivity() {
         btnFull.setOnClickListener { resetTopTimer(); toggleFullscreen() }
 
         applySystemBars()
+        bindWatchPage()
+        loadWatchInfo()
         fitEpPanelHeight()
 
         // 电影、单集综艺这种只有一集的，不给「选集」按钮 —— 点开就一个格子，没意义
@@ -241,6 +244,145 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             play(index)
         }
+    }
+
+    override fun onNewIntent(next: android.content.Intent) {
+        super.onNewIntent(next)
+        if (next.getBooleanExtra("resumeExisting", false)) return
+        val entries = next.getStringArrayListExtra("eps") ?: return
+        saveHis()
+        ++playRequest
+        ++sourceRequest
+        player.stop()
+        intent = next
+        eps.clear(); eps.addAll(entries)
+        vodName = next.getStringExtra("title").orEmpty()
+        pic = next.getStringExtra("pic").orEmpty()
+        api = next.getStringExtra("api").orEmpty()
+        srcName = next.getStringExtra("srcName").orEmpty()
+        vid = next.getStringExtra("vid").orEmpty()
+        lineName = next.getStringExtra("line").orEmpty()
+        wantSeek = next.getLongExtra("seek", 0L)
+        firstPlay = true
+        watchVod = null
+        epBuilt = false
+        hideEpPanel()
+        index = next.getIntExtra("index", 0).coerceIn(0, (eps.size - 1).coerceAtLeast(0))
+        btnEp.visibility = if (eps.size > 1) View.VISIBLE else View.GONE
+        bindWatchPage()
+        loadWatchInfo()
+        if (eps.isNotEmpty()) play(index, false)
+    }
+
+    private var watchVod: com.songshu.sstv.data.Vod? = null
+    private var sourceRequest = 0
+
+    private fun bindWatchPage() {
+        findViewById<TextView>(R.id.watchTitle).text = vodName.ifBlank { "尚未播放" }
+        findViewById<TextView>(R.id.watchMeta).apply {
+            text = watchVod?.meta.orEmpty()
+            visibility = if (text.isBlank()) View.GONE else View.VISIBLE
+        }
+        findViewById<TextView>(R.id.watchPlot).apply {
+            text = watchVod?.content.orEmpty()
+            visibility = if (text.isBlank()) View.GONE else View.VISIBLE
+        }
+        findViewById<View>(R.id.watchFind).apply {
+            visibility = if (eps.isEmpty()) View.VISIBLE else View.GONE
+            setOnClickListener { com.songshu.sstv.ui.BottomNav.open(this@PlayerActivity, SearchActivity::class.java) }
+        }
+        findViewById<TextView>(R.id.playerSource).apply {
+            text = "${srcName.ifBlank { "切换片源" }}  ▾"
+            visibility = if (api.isBlank()) View.GONE else View.VISIBLE
+            setOnClickListener {
+                com.songshu.sstv.ui.SourcePicker.show(this@PlayerActivity, SourceStore.sources(this@PlayerActivity), api) { source ->
+                    switchWatchSource(source)
+                }
+            }
+        }
+        val lines = findViewById<LinearLayout>(R.id.watchLines)
+        lines.removeAllViews()
+        watchVod?.takeIf { it.lines.size > 1 }?.let { vod ->
+            val row = android.widget.HorizontalScrollView(this)
+            val buttons = LinearLayout(this)
+            vod.lines.forEach { line ->
+                buttons.addView(watchButton(line.name, line.name == lineName) {
+                    replaceWatchLine(vod, line)
+                }, LinearLayout.LayoutParams(-2, dpWatch(36)).apply { rightMargin = dpWatch(8) })
+            }
+            row.addView(buttons)
+            lines.addView(row)
+        }
+        val box = findViewById<LinearLayout>(R.id.watchEpisodes)
+        box.removeAllViews()
+        findViewById<View>(R.id.watchEpisodeLabel).visibility = if (eps.size > 1) View.VISIBLE else View.GONE
+        if (eps.size > 1) eps.chunked(4).forEachIndexed { rowIndex, chunk ->
+            val row = LinearLayout(this)
+            chunk.forEachIndexed { col, entry ->
+                val target = rowIndex * 4 + col
+                row.addView(watchButton(entry.substringBefore('\u0001'), target == index) { play(target) },
+                    LinearLayout.LayoutParams(0, dpWatch(40), 1f).apply { setMargins(0, 0, dpWatch(6), dpWatch(8)) })
+            }
+            repeat(4 - chunk.size) { row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f)) }
+            box.addView(row)
+        }
+    }
+
+    private fun dpWatch(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    private fun watchButton(label: String, selected: Boolean, action: () -> Unit) = TextView(this).apply {
+        text = label; textSize = 13f; gravity = Gravity.CENTER; includeFontPadding = false
+        maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+        setPadding(dpWatch(12), 0, dpWatch(12), 0)
+        setTextColor(themeColor(if (selected) R.attr.appOnAccent else R.attr.appText))
+        setBackgroundResource(if (selected) R.drawable.bg_btn_primary else R.drawable.bg_chip)
+        setOnClickListener { action() }
+    }
+
+    private fun loadWatchInfo() {
+        if (api.isBlank() || vid.isBlank()) return
+        val request = ++sourceRequest
+        val endpoint = api; val id = vid; val source = srcName
+        Bg.io.execute {
+            val vod = runCatching { VodApi.detail(endpoint, id, source) }.getOrNull()
+            showResult {
+                if (request != sourceRequest || vod == null) return@showResult
+                watchVod = vod
+                bindWatchPage()
+            }
+        }
+    }
+
+    private fun switchWatchSource(source: com.songshu.sstv.data.Source) {
+        val request = ++sourceRequest
+        findViewById<TextView>(R.id.playerSource).text = "${source.name} · 正在查找"
+        Bg.io.execute {
+            val vod = runCatching {
+                val hit = VodApi.search(source.api, vodName, source.name).list
+                    .firstOrNull { it.name == vodName } ?: return@runCatching null
+                VodApi.detail(source.api, hit.id, source.name)
+            }.getOrNull()
+            showResult {
+                if (request != sourceRequest) return@showResult
+                if (vod == null || vod.lines.none { it.episodes.isNotEmpty() }) {
+                    bindWatchPage(); showToast("该片源没有可播放的同名影片")
+                } else {
+                    SourceStore.setCurrent(this, source)
+                    replaceWatchLine(vod, vod.lines.first { it.episodes.isNotEmpty() })
+                }
+            }
+        }
+    }
+
+    private fun replaceWatchLine(vod: com.songshu.sstv.data.Vod, line: com.songshu.sstv.data.PlayLine) {
+        val previousName = eps.getOrNull(index)?.substringBefore('\u0001')
+        val position = player.currentPosition
+        saveHis()
+        watchVod = vod; api = vod.sourceApi; srcName = vod.sourceName; vid = vod.id; lineName = line.name
+        eps.clear(); eps.addAll(line.episodes.map { it.name + "\u0001" + it.url })
+        wantSeek = position; firstPlay = true; epBuilt = false
+        btnEp.visibility = if (eps.size > 1) View.VISIBLE else View.GONE
+        play(line.episodes.indexOfFirst { it.name == previousName }.coerceAtLeast(0), false)
     }
 
     // ───────────────────────── 播放历史 / 断点续播 ─────────────────────────
@@ -535,10 +677,12 @@ class PlayerActivity : AppCompatActivity() {
         gReady = false
         if (hit(topBar, ev) || hit(speedPanel, ev)) return
         val w = resources.displayMetrics.widthPixels
-        val h = resources.displayMetrics.heightPixels
+        val h = view.height
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
         // 自带进度条那一层正亮着的时候，底部这一带让给它 ——
         // 免得想拖进度条结果变成调亮度；它收起来之后整个下半屏都能滑
-        if (view.isControllerFullyVisible && ev.rawY > h * 0.78f) return
+        if (view.isControllerFullyVisible && ev.rawY > location[1] + h * 0.72f) return
         gSide = when {
             ev.rawX < w * 0.35f -> 1             // 左 35% → 上下滑调亮度
             ev.rawX > w * 0.65f -> 2             // 右 35% → 上下滑调音量
@@ -667,7 +811,11 @@ class PlayerActivity : AppCompatActivity() {
      *
      * 按在顶栏、倍速面板上的不算；底部进度条那一带也不抢（免得滑到一半变成拖进度）。
      */
+    private var touchingVideo = false
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) touchingVideo = hit(findViewById(R.id.videoStage), ev)
+        if (!touchingVideo) return super.dispatchTouchEvent(ev)
         // 选集面板开着的时候，画面那几套手势全让路 —— 面板里的滚动和点击优先
         if (epPanel.visibility == View.VISIBLE) return super.dispatchTouchEvent(ev)
 
@@ -839,6 +987,13 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun applySystemBars() {
         val land = isLandscape()
+        val stage = findViewById<View>(R.id.videoStage)
+        stage.layoutParams = stage.layoutParams.apply {
+            height = if (land) -1 else (resources.configuration.screenWidthDp * resources.displayMetrics.density * 9 / 16).toInt()
+        }
+        findViewById<View>(R.id.playerDetails).visibility = if (land) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.playerNavigation).visibility = if (land) View.GONE else View.VISIBLE
+        titleTv.visibility = if (land) View.VISIBLE else View.GONE
         val ctrl = WindowCompat.getInsetsController(window, window.decorView)
         if (land) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -875,6 +1030,7 @@ class PlayerActivity : AppCompatActivity() {
             hideEpPanel()
             return
         }
+        if (isLandscape()) { toggleFullscreen(); return }
         super.onBackPressed()
     }
 
@@ -918,10 +1074,15 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun play(i: Int) {
+    private var playRequest = 0
+    private var deferredPlayback = false
+
+    private fun play(i: Int, savePrevious: Boolean = true) {
         if (i !in eps.indices) return
-        saveHis()                 // 换集之前，先把上一集看到哪儿记下来
+        if (savePrevious) saveHis()
+        val request = ++playRequest
         index = i
+        bindWatchPage()
         val parts = eps[i].split("\u0001")
         val epName = parts.getOrNull(0) ?: ""
         val raw = parts.getOrNull(1) ?: return
@@ -943,7 +1104,7 @@ class PlayerActivity : AppCompatActivity() {
         Bg.io.execute {
             val real = runCatching { PlayResolver.resolve(raw) }.getOrDefault(raw)
             runOnUiThread {
-                if (index != i) return@runOnUiThread   // 用户已经切到别的集了
+                if (isFinishing || isDestroyed || request != playRequest || index != i) return@runOnUiThread   // 用户已经切到别的集了
                 startPlay(real, startAt)
             }
         }
@@ -959,7 +1120,8 @@ class PlayerActivity : AppCompatActivity() {
                 player.seekTo(startAt)
                 showToast("从 ${fmtDur(startAt)} 接着看")
             }
-            player.playWhenReady = true
+            deferredPlayback = !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+            player.playWhenReady = !deferredPlayback
         }.onFailure { showToast("地址有问题：${it.message}") }
     }
 
@@ -1036,6 +1198,14 @@ class PlayerActivity : AppCompatActivity() {
         // 播着播着每 5 秒记一次进度
         histHandler.removeCallbacks(hisSaver)
         histHandler.postDelayed(hisSaver, 5000L)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (deferredPlayback && ::player.isInitialized) {
+            deferredPlayback = false
+            player.play()
+        }
     }
 
     override fun onPause() {

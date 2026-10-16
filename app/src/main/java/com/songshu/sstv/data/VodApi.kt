@@ -38,6 +38,7 @@ object VodApi {
     fun get(url: String, timeout: Int = 15000): String {
         var last: Exception? = null
         repeat(2) {
+            if (Thread.currentThread().isInterrupted) throw java.io.InterruptedIOException("请求已取消")
             try {
                 val conn = URL(url).openConnection() as HttpURLConnection
                 conn.connectTimeout = timeout

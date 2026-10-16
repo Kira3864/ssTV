@@ -8,7 +8,6 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.songshu.sstv.data.HisItem
@@ -18,7 +17,7 @@ import com.songshu.sstv.ui.Dlg
 import com.songshu.sstv.ui.Img
 
 /** 播放历史：点一条就直接接着上次的地方看 */
-class HistoryActivity : AppCompatActivity() {
+class HistoryActivity : ThemedActivity() {
 
     private lateinit var list: RecyclerView
     private lateinit var summary: TextView
@@ -79,6 +78,7 @@ class HistoryActivity : AppCompatActivity() {
         if (idx < 0) idx = 0
         startActivity(
             Intent(this, PlayerActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 .putExtra("title", h.title)
                 .putStringArrayListExtra("eps", eps)
                 .putExtra("index", idx)
@@ -106,6 +106,7 @@ class HisAdapter(
     private val data = ArrayList<HisItem>()
 
     fun submit(l: List<HisItem>) {
+        if (data == l) return
         data.clear()
         data.addAll(l)
         notifyDataSetChanged()

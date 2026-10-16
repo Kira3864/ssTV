@@ -1,240 +1,44 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/black">
-
-    <!-- 播放器自带的控制条：中间的上一集/下一集/后退5秒/前进15秒、右下角的齿轮，
-         都在 PlayerActivity.slimController() 里关掉了，只留「播放/暂停」+ 底部进度条 -->
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/player"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:resize_mode="fit"
-        app:show_buffering="when_playing"
-        app:use_controller="true" />
-
-    <LinearLayout
-        android:id="@+id/topBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:background="#99000000"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingLeft="6dp"
-        android:paddingRight="12dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp">
-
-        <TextView
-            android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingLeft="12dp"
-            android:paddingRight="12dp"
-            android:text="返回"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/btnEp"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:text="选集"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/btnCache"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:text="缓存"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/btnSpeed"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:minWidth="50dp"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
-            android:text="1倍"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/btnFull"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:text="横屏"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="?attr/appBg">
+  <FrameLayout android:id="@+id/videoStage" android:layout_width="match_parent" android:layout_height="220dp" android:background="@android:color/black">
+    <androidx.media3.ui.PlayerView android:id="@+id/player" android:layout_width="match_parent" android:layout_height="match_parent" app:resize_mode="fit" app:show_buffering="when_playing" app:use_controller="true" />
+    <LinearLayout android:id="@+id/topBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="top" android:background="#99000000" android:gravity="center_vertical" android:orientation="horizontal" android:paddingLeft="6dp" android:paddingRight="12dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+      <TextView android:id="@+id/btnBack" android:layout_width="wrap_content" android:layout_height="36dp" android:gravity="center" android:paddingLeft="12dp" android:paddingRight="12dp" android:text="返回" android:textColor="#FFFFFF" android:textSize="14sp" />
+      <TextView android:id="@+id/title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" android:textColor="#FFFFFF" android:textSize="14sp" />
+      <TextView android:id="@+id/btnEp" android:layout_width="wrap_content" android:layout_height="36dp" android:gravity="center" android:paddingLeft="10dp" android:paddingRight="10dp" android:text="选集" android:textColor="#FFFFFF" android:textSize="13sp" android:visibility="gone" />
+      <TextView android:id="@+id/btnCache" android:layout_width="wrap_content" android:layout_height="36dp" android:gravity="center" android:paddingLeft="10dp" android:paddingRight="10dp" android:text="缓存" android:textColor="#FFFFFF" android:textSize="13sp" />
+      <TextView android:id="@+id/btnSpeed" android:layout_width="wrap_content" android:layout_height="36dp" android:gravity="center" android:minWidth="50dp" android:paddingLeft="8dp" android:paddingRight="8dp" android:text="1倍" android:textColor="#FFFFFF" android:textSize="13sp" />
+      <TextView android:id="@+id/btnFull" android:layout_width="wrap_content" android:layout_height="36dp" android:gravity="center" android:paddingLeft="10dp" android:paddingRight="10dp" android:text="横屏" android:textColor="#FFFFFF" android:textSize="13sp" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/toast"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="132dp"
-        android:background="#CC000000"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="9dp"
-        android:paddingBottom="9dp"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
-        android:visibility="gone" />
-
-    <GridLayout
-        android:id="@+id/speedPanel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|right"
-        android:layout_marginRight="14dp"
-        android:layout_marginBottom="130dp"
-        android:background="@drawable/bg_speed_panel"
-        android:padding="6dp"
-        android:visibility="gone" />
-
-    <LinearLayout
-        android:id="@+id/hudBox"
-        android:layout_width="160dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:background="@drawable/bg_hud"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingLeft="18dp"
-        android:paddingRight="18dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="16dp"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/hudLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="亮度"
-            android:textColor="#CCFFFFFF"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/hudValue"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="60%"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <ProgressBar
-            android:id="@+id/hudBar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="6dp"
-            android:layout_marginTop="10dp"
-            android:max="100"
-            android:progress="60"
-            android:progressDrawable="@drawable/progress_bar" />
+    <TextView android:id="@+id/toast" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="132dp" android:background="#CC000000" android:paddingLeft="16dp" android:paddingRight="16dp" android:paddingTop="9dp" android:paddingBottom="9dp" android:textColor="#FFFFFF" android:textSize="13sp" android:visibility="gone" />
+    <GridLayout android:id="@+id/speedPanel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|right" android:layout_marginRight="14dp" android:layout_marginBottom="130dp" android:background="@drawable/bg_speed_panel" android:padding="6dp" android:visibility="gone" />
+    <LinearLayout android:id="@+id/hudBox" android:layout_width="160dp" android:layout_height="wrap_content" android:layout_gravity="center" android:background="@drawable/bg_hud" android:gravity="center_horizontal" android:orientation="vertical" android:paddingLeft="18dp" android:paddingRight="18dp" android:paddingTop="14dp" android:paddingBottom="16dp" android:visibility="gone">
+      <TextView android:id="@+id/hudLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="亮度" android:textColor="#CCFFFFFF" android:textSize="12sp" />
+      <TextView android:id="@+id/hudValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="60%" android:textColor="#FFFFFF" android:textSize="22sp" android:textStyle="bold" />
+      <ProgressBar android:id="@+id/hudBar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="10dp" android:max="100" android:progress="60" android:progressDrawable="@drawable/progress_bar" />
     </LinearLayout>
-
-    <!-- 选集面板：一整季铺成一个网格，点哪集跳哪集。
-         放在最后 = 盖在所有东西上面；点卡片外面那圈黑可以关掉它。 -->
-    <FrameLayout
-        android:id="@+id/epPanel"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#B3000000"
-        android:visibility="gone">
-
-        <LinearLayout
-            android:id="@+id/epCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:layout_marginLeft="16dp"
-            android:layout_marginRight="16dp"
-            android:background="@drawable/bg_ep_panel"
-            android:orientation="vertical"
-            android:paddingBottom="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingLeft="16dp"
-                android:paddingTop="12dp"
-                android:paddingRight="8dp"
-                android:paddingBottom="4dp">
-
-                <TextView
-                    android:id="@+id/epTitle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:text="选集"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/btnEpClose"
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp"
-                    android:gravity="center"
-                    android:paddingLeft="12dp"
-                    android:paddingRight="12dp"
-                    android:text="关闭"
-                    android:textColor="#98A2B3"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <ScrollView
-                android:id="@+id/epScroll"
-                android:layout_width="match_parent"
-                android:layout_height="320dp"
-                android:paddingLeft="12dp"
-                android:paddingRight="12dp"
-                android:paddingTop="6dp"
-                android:scrollbars="vertical">
-
-                <LinearLayout
-                    android:id="@+id/epGrid"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </ScrollView>
+    <FrameLayout android:id="@+id/epPanel" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#B3000000" android:visibility="gone">
+      <LinearLayout android:id="@+id/epCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center_vertical" android:layout_marginLeft="16dp" android:layout_marginRight="16dp" android:background="@drawable/bg_ep_panel" android:orientation="vertical" android:paddingBottom="12dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingLeft="16dp" android:paddingTop="12dp" android:paddingRight="8dp" android:paddingBottom="4dp">
+          <TextView android:id="@+id/epTitle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:maxLines="1" android:text="选集" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" />
+          <TextView android:id="@+id/btnEpClose" android:layout_width="wrap_content" android:layout_height="34dp" android:gravity="center" android:paddingLeft="12dp" android:paddingRight="12dp" android:text="关闭" android:textColor="#98A2B3" android:textSize="14sp" />
         </LinearLayout>
+        <ScrollView android:id="@+id/epScroll" android:layout_width="match_parent" android:layout_height="320dp" android:paddingLeft="12dp" android:paddingRight="12dp" android:paddingTop="6dp" android:scrollbars="vertical">
+          <LinearLayout android:id="@+id/epGrid" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+        </ScrollView>
+      </LinearLayout>
     </FrameLayout>
-
-</FrameLayout>
+  </FrameLayout>
+  <ScrollView android:id="@+id/playerDetails" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+      <TextView android:id="@+id/watchTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="21sp" android:textColor="?attr/appText" android:gravity="center_vertical" android:layout_marginBottom="12dp" android:textStyle="bold" />
+      <TextView android:id="@+id/watchMeta" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="12sp" android:textColor="?attr/appText" android:gravity="center_vertical" android:layout_marginBottom="12dp" />
+      <TextView android:id="@+id/playerSource" android:layout_width="match_parent" android:layout_height="42dp" android:text="切换片源  ▾" android:textSize="14sp" android:textColor="?attr/appAccent" android:gravity="center" android:layout_marginBottom="12dp" android:background="@drawable/bg_btn_ghost" />
+      <LinearLayout android:id="@+id/watchLines" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+      <TextView android:id="@+id/watchEpisodeLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="选集" android:textSize="16sp" android:textColor="?attr/appText" android:gravity="center_vertical" android:layout_marginBottom="12dp" />
+      <LinearLayout android:id="@+id/watchEpisodes" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+      <TextView android:id="@+id/watchPlot" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="14sp" android:textColor="?attr/appText" android:gravity="center_vertical" android:layout_marginBottom="12dp" />
+      <TextView android:id="@+id/watchFind" android:layout_width="match_parent" android:layout_height="44dp" android:text="找片" android:textSize="14sp" android:textColor="?attr/appOnAccent" android:gravity="center" android:layout_marginBottom="12dp" android:background="@drawable/bg_btn_primary" android:visibility="gone" />
+    </LinearLayout>
+  </ScrollView>
+  <com.songshu.sstv.ui.BottomNav android:id="@+id/playerNavigation" android:layout_width="match_parent" android:layout_height="56dp" />
+</LinearLayout>

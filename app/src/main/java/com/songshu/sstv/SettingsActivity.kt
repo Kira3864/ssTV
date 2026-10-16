@@ -5,7 +5,6 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import com.songshu.sstv.cache.CacheMgr
@@ -18,7 +17,7 @@ import com.songshu.sstv.ui.DlOverlay
 import org.json.JSONArray
 import org.json.JSONObject
 
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : ThemedActivity() {
 
     private lateinit var sourceBox: LinearLayout
     private lateinit var sourceCount: TextView
@@ -33,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        renderAppearance()
         sourceBox = findViewById(R.id.sourceBox)
         sourceCount = findViewById(R.id.sourceCount)
         cacheInfo = findViewById(R.id.cacheInfo)
@@ -49,7 +49,7 @@ class SettingsActivity : AppCompatActivity() {
             Dlg.confirm(this, "清空在线缓存", "只清「边看边缓存」的临时片段，已下载的整集不受影响。") {
                 Bg.io.execute {
                     CacheMgr.clear(this)
-                    runOnUiThread { refreshCacheInfo() }
+                    showResult { refreshCacheInfo() }
                 }
             }
         }
@@ -108,7 +108,7 @@ class SettingsActivity : AppCompatActivity() {
         Bg.io.execute {
             val online = CacheMgr.size(this)
             val dl = DlStore.totalSize(this)
-            runOnUiThread {
+            showResult {
                 cacheInfo.text = "边看边缓存：${fmtSize(online)}\n已下载整集：${fmtSize(dl)}"
             }
         }
@@ -137,15 +137,15 @@ class SettingsActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER_VERTICAL
             }
             val nm = TextView(this).apply {
-                text = if (s.name == cur.name) "${s.name}   ✓ 当前" else s.name
-                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text))
+                text = if (s.api == cur.api) "${s.name}   ✓ 当前" else s.name
+                setTextColor(this@SettingsActivity.themeColor(R.attr.appText))
                 textSize = 15f
             }
             head.addView(nm, LinearLayout.LayoutParams(0, -2, 1f))
             val del = TextView(this).apply {
                 text = "删除"
                 textSize = 13f
-                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.primary))
+                setTextColor(this@SettingsActivity.themeColor(R.attr.appAccent))
                 setPadding(dp(10), dp(6), dp(4), dp(6))
                 setOnClickListener { delSource(s) }
             }
@@ -156,14 +156,14 @@ class SettingsActivity : AppCompatActivity() {
                 text = s.api
                 textSize = 11.5f
                 setPadding(0, dp(4), 0, 0)
-                setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_dim))
+                setTextColor(this@SettingsActivity.themeColor(R.attr.appTextMuted))
             })
 
             val ops = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             val olp = LinearLayout.LayoutParams(-1, -2)
             olp.topMargin = dp(10)
             ops.layoutParams = olp
-            if (s.name != cur.name) {
+            if (s.api != cur.api) {
                 ops.addView(smallBtn("设为当前") {
                     SourceStore.setCurrent(this, s)
                     renderSources()
@@ -182,7 +182,7 @@ class SettingsActivity : AppCompatActivity() {
             text = label
             textSize = 13f
             gravity = Gravity.CENTER
-            setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text))
+            setTextColor(this@SettingsActivity.themeColor(R.attr.appText))
             background = ContextCompat.getDrawable(this@SettingsActivity, R.drawable.bg_btn_ghost)
             setPadding(dp(14), dp(8), dp(14), dp(8))
             setOnClickListener { on() }
@@ -204,7 +204,12 @@ class SettingsActivity : AppCompatActivity() {
                 Dlg.tip(this, "没填地址", "接口地址不能为空。")
                 return@input
             }
+            if (!validApi(api)) return@input
             val list = SourceStore.sources(this)
+            if (list.any { it.api == api }) {
+                Dlg.tip(this, "片源已存在", "这个接口已经在列表中。")
+                return@input
+            }
             list.add(Source(nm, api))
             SourceStore.save(this, list)
             renderSources()
@@ -219,12 +224,18 @@ class SettingsActivity : AppCompatActivity() {
         ) { v ->
             val nm = v.getOrElse(0) { "" }.ifBlank { s.name }
             val api = VodApi.normalize(v.getOrElse(1) { "" }).ifBlank { s.api }
-            val list = SourceStore.sources(this)
-            val i = list.indexOfFirst { it.name == s.name && it.api == s.api }
-            if (i >= 0) list[i] = Source(nm, api)
-            SourceStore.save(this, list)
+            if (!validApi(api)) return@input
             val cur = SourceStore.current(this)
-            if (cur.api == s.api) runCatching { SourceStore.setCurrent(this, list[i]) }
+            val list = SourceStore.sources(this)
+            if (list.any { it.api == api && it != s }) {
+                Dlg.tip(this, "片源已存在", "这个接口已经在列表中。")
+                return@input
+            }
+            val i = list.indexOfFirst { it.name == s.name && it.api == s.api }
+            if (i < 0) return@input
+            list[i] = Source(nm, api)
+            SourceStore.save(this, list)
+            if (cur.api == s.api) SourceStore.setCurrent(this, list[i])
             renderSources()
         }
     }
@@ -232,9 +243,13 @@ class SettingsActivity : AppCompatActivity() {
     private fun delSource(s: Source) {
         Dlg.confirm(this, "删除片源", "删掉「${s.name}」？") {
             val list = SourceStore.sources(this)
+            if (list.size <= 1) {
+                Dlg.tip(this, "保留一个片源", "请先添加其他片源，再删除最后一个。")
+                return@confirm
+            }
+            val cur = SourceStore.current(this)
             list.removeAll { it.name == s.name && it.api == s.api }
             SourceStore.save(this, list)
-            val cur = SourceStore.current(this)
             if (cur.api == s.api && list.isNotEmpty()) SourceStore.setCurrent(this, list[0])
             renderSources()
         }
@@ -245,7 +260,7 @@ class SettingsActivity : AppCompatActivity() {
         Bg.io.execute {
             val r = runCatching { VodApi.classes(s.api) }
             val n = r.getOrNull()?.size ?: 0
-            runOnUiThread {
+            showResult {
                 if (n > 0) {
                     Dlg.tip(this, "通了", "「${s.name}」返回了 $n 个分类，可以用。")
                 } else {
@@ -280,7 +295,7 @@ class SettingsActivity : AppCompatActivity() {
                 pool.awaitTermination(90, java.util.concurrent.TimeUnit.SECONDS)
                 val okN = okList.size
                 val badNow = ArrayList(badList)
-                runOnUiThread {
+                showResult {
                     val msg = buildString {
                         append("可用 $okN / ${all.size} 个。\n")
                         if (badNow.isEmpty()) {
@@ -342,7 +357,7 @@ class SettingsActivity : AppCompatActivity() {
                         }
                     }
                 }
-                runOnUiThread {
+                showResult {
                     if (found.isEmpty()) {
                         Dlg.tip(this, "没导到东西", "这个配置里没有 type=1 的可用接口，或者链接打不开。")
                     } else {
@@ -360,6 +375,69 @@ class SettingsActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun validApi(api: String): Boolean {
+        val valid = runCatching {
+            val url = java.net.URI(api)
+            url.scheme in listOf("http", "https") && !url.host.isNullOrBlank()
+        }.getOrDefault(false)
+        if (!valid) Dlg.tip(this, "地址不正确", "请输入有效的 HTTP 或 HTTPS 接口地址。")
+        return valid
+    }
+
+    private fun renderAppearance() {
+        val box = findViewById<LinearLayout>(R.id.themeOptions)
+        val current = ThemeStore.current(this)
+        ThemeStore.styles.forEach { style ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(18), dp(16), dp(18), dp(16))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(style.background)
+                    cornerRadius = dp(style.radius.toInt()).toFloat()
+                    setStroke(dp(if (current.id == style.id) 2 else 1),
+                        if (current.id == style.id) style.accent else style.surface)
+                }
+                contentDescription = "${style.label}，${style.description}，${if (current.id == style.id) "已选中" else "点按应用"}"
+                isSelected = current.id == style.id
+            }
+            card.addView(TextView(this).apply {
+                text = "${style.label}    ${if (current.id == style.id) "✓ 使用中" else "↗"}"
+                setTextColor(style.ink)
+                textSize = 17f
+                typeface = android.graphics.Typeface.create(style.font, android.graphics.Typeface.BOLD)
+            })
+            card.addView(TextView(this).apply {
+                text = style.description
+                textSize = 12f
+                setTextColor(style.ink)
+                alpha = .8f
+                setPadding(0, dp(6), 0, dp(12))
+            })
+            val sample = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            listOf(style.accent, style.surface, style.ink).forEach { color ->
+                sample.addView(View(this).apply {
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(color)
+                        cornerRadius = dp(style.radius.toInt().coerceAtMost(10)).toFloat()
+                    }
+                }, LinearLayout.LayoutParams(dp(42), dp(8)).apply { rightMargin = dp(6) })
+            }
+            card.addView(sample)
+            card.setOnClickListener {
+                if (current.id != style.id) {
+                    ThemeStore.select(this, style)
+                    recreate()
+                }
+            }
+            com.songshu.sstv.ui.Motion.interactive(card)
+            box.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+        }
+        findViewById<SwitchCompat>(R.id.swReduceMotion).apply {
+            isChecked = ThemeStore.reducedMotion(this@SettingsActivity)
+            setOnCheckedChangeListener { _, checked -> ThemeStore.setReducedMotion(this@SettingsActivity, checked) }
         }
     }
 

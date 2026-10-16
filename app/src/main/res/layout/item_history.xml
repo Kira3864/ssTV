@@ -19,7 +19,7 @@
             android:id="@+id/pic"
             android:layout_width="82dp"
             android:layout_height="54dp"
-            android:background="@color/surface2"
+            android:background="?attr/appSurfaceAlt"
             android:scaleType="centerCrop" />
 
         <LinearLayout
@@ -35,7 +35,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/text"
+                android:textColor="?attr/appText"
                 android:textSize="14sp" />
 
             <TextView
@@ -45,7 +45,7 @@
                 android:layout_marginTop="3dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/primary"
+                android:textColor="?attr/appAccent"
                 android:textSize="11.5sp" />
 
             <TextView
@@ -55,7 +55,7 @@
                 android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/text_dim"
+                android:textColor="?attr/appTextMuted"
                 android:textSize="11.5sp" />
         </LinearLayout>
 
@@ -67,7 +67,7 @@
             android:paddingLeft="10dp"
             android:paddingRight="10dp"
             android:text="删除"
-            android:textColor="@color/text_dim"
+            android:textColor="?attr/appTextMuted"
             android:textSize="13sp" />
     </LinearLayout>
 

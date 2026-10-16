@@ -7,7 +7,6 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.songshu.sstv.data.Source
@@ -30,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * 同名结果只保留先到的那个，避免同一个片子刷屏；
  * 列表里每条都会标出它是从哪个源搜到的，点进去就用那个源播。
  */
-class SearchActivity : AppCompatActivity() {
+class SearchActivity : ThemedActivity() {
 
     private lateinit var input: EditText
     private lateinit var list: RecyclerView
@@ -39,12 +38,16 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var hint: TextView
     private lateinit var tip: TextView
 
-    private var searching = false
-
-    /** 跨轮次累计的结果与去重表，全部在 lock 内读写 */
-    private val lock = Any()
-    private val seen = HashSet<String>()
-    private val acc = ArrayList<Vod>()
+    private class SearchSession {
+        val lock = Any()
+        val seen = HashSet<String>()
+        val results = ArrayList<Vod>()
+        @Volatile var cancelled = false
+        val pools = java.util.concurrent.CopyOnWriteArrayList<java.util.concurrent.ExecutorService>()
+        fun cancel() { cancelled = true; pools.forEach { it.shutdownNow() } }
+    }
+    private var session: SearchSession? = null
+    private var searchJob: java.util.concurrent.Future<*>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,30 +69,46 @@ class SearchActivity : AppCompatActivity() {
                     .putExtra("pic", v.pic)
             )
         }
-        val w = resources.configuration.screenWidthDp
-        list.layoutManager = GridLayoutManager(this, maxOf(2, w / 112))
         list.adapter = adapter
+        list.itemAnimator = null
+        list.setItemViewCacheSize(8)
+        applySpan()
 
         val usable = SourceStore.sources(this).count { !it.name.contains("(无搜索)") }
         tip.text = "共 ${SourceStore.sources(this).size} 个片源，其中 $usable 个支持搜索"
 
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<View>(R.id.btnGo).setOnClickListener { doSearch() }
-        input.setOnEditorActionListener { _, _, _ ->
-            doSearch()
-            true
+        input.setOnEditorActionListener { _, action, event ->
+            if (action == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                (event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)) {
+                doSearch()
+                true
+            } else false
         }
         input.requestFocus()
+    }
+
+    private fun applySpan() {
+        val width = resources.configuration.screenWidthDp
+        val columns = maxOf(2, width / 112)
+        list.layoutManager = GridLayoutManager(this, columns)
+        adapter.setPicHeight(((width / columns - 12) * 1.42f * resources.displayMetrics.density).toInt())
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applySpan()
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     /** 只在页面还活着的时候碰 UI，免得搜完回来页面已经关了 */
     private fun ui(block: () -> Unit) {
-        runOnUiThread { if (!isFinishing && !isDestroyed) block() }
+        showResult { if (!isFinishing && !isDestroyed) block() }
     }
 
-    private fun setTip(s: String) = ui { tip.text = s }
+    private fun setTip(work: SearchSession, s: String) = ui { if (session === work && !work.cancelled) tip.text = s }
 
     /** 片名归一化：只用来判断「是不是同一部」 */
     private fun keyOf(name: String): String =
@@ -132,18 +151,17 @@ class SearchActivity : AppCompatActivity() {
             hint.visibility = View.VISIBLE
             return
         }
-        if (searching) return
-        searching = true
+        session?.cancel()
+        searchJob?.cancel(true)
+        val work = SearchSession()
+        session = work
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(input.windowToken, 0)
 
         progress.visibility = View.VISIBLE
         hint.visibility = View.GONE
         adapter.clear()
-        synchronized(lock) {
-            seen.clear()
-            acc.clear()
-        }
+
 
         val all = SourceStore.sources(this)
         val cur = SourceStore.current(this)
@@ -153,7 +171,6 @@ class SearchActivity : AppCompatActivity() {
         val closed = ordered.filter { it.name.contains("(无搜索)") }
 
         if (ordered.isEmpty()) {
-            searching = false
             progress.visibility = View.GONE
             hint.text = "一个片源都没有，去设置里加几个吧"
             hint.visibility = View.VISIBLE
@@ -162,33 +179,33 @@ class SearchActivity : AppCompatActivity() {
 
         val filterAdult = SourceStore.filterAdult(this)
 
-        Bg.io.execute {
+        searchJob = Bg.io.submit {
             var total = 0
 
             // ── 第 1 轮：所有能搜的源一起问，当前源排最前
             if (canSearch.isNotEmpty()) {
-                setTip("第 1 轮：正在问 ${canSearch.size} 个片源…")
-                total = runRound(canSearch, wd, "第 1 轮", filterAdult)
+                setTip(work, "第 1 轮：正在问 ${canSearch.size} 个片源…")
+                total = runRound(work, canSearch, wd, "第 1 轮", filterAdult)
             }
 
             // ── 第 2 轮：一个都没搜到 → 自动换个干净点的关键词重来
             if (total == 0) {
                 for (v in variants(wd)) {
-                    if (total > 0) break
-                    setTip("第 1 轮没搜到，自动换成「$v」再搜一遍…")
-                    total = runRound(canSearch, v, "第 2 轮（「$v」）", filterAdult)
+                    if (total > 0 || work.cancelled) break
+                    setTip(work, "第 1 轮没搜到，自动换成「$v」再搜一遍…")
+                    total = runRound(work, canSearch, v, "第 2 轮（「$v」）", filterAdult)
                 }
             }
 
             // ── 第 3 轮：还是空 → 连站方关了搜索的源也硬试一遍
-            if (total == 0 && closed.isNotEmpty()) {
-                setTip("还没有，连 ${closed.size} 个关了搜索的源也硬试一遍…")
-                runRound(closed, wd, "第 3 轮", filterAdult)
+            if (total == 0 && !work.cancelled && closed.isNotEmpty()) {
+                setTip(work, "还没有，连 ${closed.size} 个关了搜索的源也硬试一遍…")
+                runRound(work, closed, wd, "第 3 轮", filterAdult)
             }
 
-            val n = synchronized(lock) { acc.size }
+            val n = synchronized(work.lock) { work.results.size }
             ui {
-                searching = false
+                if (session !== work || work.cancelled) return@ui
                 progress.visibility = View.GONE
                 tip.text = "「$wd」共试了 ${ordered.size} 个片源，找到 $n 个结果"
                 if (n == 0) {
@@ -204,39 +221,64 @@ class SearchActivity : AppCompatActivity() {
      * 返回这一轮结束时一共找到多少个（跨轮累计）。
      */
     private fun runRound(
+        work: SearchSession,
         targets: List<Source>,
         wd: String,
         label: String,
         filterAdult: Boolean
     ): Int {
-        if (targets.isEmpty()) return synchronized(lock) { acc.size }
+        if (targets.isEmpty() || work.cancelled) return synchronized(work.lock) { work.results.size }
         val done = AtomicInteger(0)
+        val accepting = java.util.concurrent.atomic.AtomicBoolean(true)
         val pool = Executors.newFixedThreadPool(8)
-        targets.forEach { s ->
-            pool.execute {
-                val got = runCatching { VodApi.search(s.api, wd, s.name).list }
-                    .getOrDefault(emptyList())
-                synchronized(lock) {
-                    got.forEach lit@ { v ->
-                        if (filterAdult && SourceStore.isAdultCategory(v.typeName)) return@lit
-                        val k = keyOf(v.name)
-                        if (k.isEmpty() || !seen.add(k)) return@lit
-                        acc.add(v)
+        work.pools.add(pool)
+        try {
+            targets.forEach { source ->
+                if (work.cancelled) return@forEach
+                pool.execute {
+                    if (work.cancelled) return@execute
+                    val got = runCatching { VodApi.search(source.api, wd, source.name).list }
+                        .getOrDefault(emptyList())
+                    synchronized(work.lock) {
+                        if (work.cancelled || !accepting.get()) return@execute
+                        got.forEach lit@ { v ->
+                            if (filterAdult && SourceStore.isAdultCategory(v.typeName)) return@lit
+                            val key = keyOf(v.name)
+                            if (key.isNotEmpty() && work.seen.add(key)) work.results.add(v)
+                        }
+                    }
+                    val count = done.incrementAndGet()
+                    ui {
+                        if (session !== work || work.cancelled || !accepting.get()) return@ui
+                        // Snapshot on the main thread so late UI posts cannot replace newer results.
+                        val snapshot = synchronized(work.lock) { ArrayList(work.results) }
+                        adapter.submit(snapshot, false)
+                        tip.text = "$label · 已试 $count/${targets.size} 个源 · 已找到 ${snapshot.size} 个"
                     }
                 }
-                val idx = done.incrementAndGet()
-                val snap = synchronized(lock) { ArrayList(acc) }
-                ui {
-                    adapter.submit(snap, false)
-                    tip.text = if (snap.isEmpty())
-                        "$label · 已试 $idx/${targets.size} 个源 · 这个源没有"
-                    else
-                        "$label · 已试 $idx/${targets.size} 个源 · 已找到 ${snap.size} 个"
-                }
+            }
+            pool.shutdown()
+            pool.awaitTermination(70, TimeUnit.SECONDS)
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            // A new query cancelled this round while tasks were being scheduled.
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } finally {
+            synchronized(work.lock) { accepting.set(false) }
+            pool.shutdownNow()
+            work.pools.remove(pool)
+        }
+        ui {
+            if (session === work && !work.cancelled) {
+                adapter.submit(synchronized(work.lock) { ArrayList(work.results) }, false)
             }
         }
-        pool.shutdown()
-        pool.awaitTermination(70, TimeUnit.SECONDS)
-        return synchronized(lock) { acc.size }
+        return synchronized(work.lock) { work.results.size }
+    }
+
+    override fun onDestroy() {
+        session?.cancel()
+        searchJob?.cancel(true)
+        super.onDestroy()
     }
 }

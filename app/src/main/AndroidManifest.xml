@@ -38,6 +38,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".MyActivity" android:exported="false" />
+
         <activity
             android:name=".SearchActivity"
             android:exported="false"

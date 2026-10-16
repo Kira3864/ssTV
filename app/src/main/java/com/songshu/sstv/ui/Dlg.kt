@@ -16,9 +16,11 @@ object Dlg {
         initial: List<String> = emptyList(),
         onOk: (List<String>) -> Unit
     ) {
+        val density = ctx.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(52, 30, 52, 0)
+            setPadding(dp(22), dp(14), dp(22), 0)
         }
         val edits = hints.mapIndexed { i, h ->
             EditText(ctx).apply {
@@ -28,7 +30,7 @@ object Dlg {
                 inputType = InputType.TYPE_CLASS_TEXT
                 box.addView(
                     this,
-                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = if (i == 0) 0 else 26 }
+                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = if (i == 0) 0 else dp(12) }
                 )
             }
         }

@@ -44,7 +44,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/text"
+                android:textColor="?attr/appText"
                 android:textSize="13sp" />
 
             <TextView
@@ -54,7 +54,7 @@
                 android:layout_marginLeft="8dp"
                 android:minWidth="46dp"
                 android:gravity="right"
-                android:textColor="@color/text"
+                android:textColor="?attr/appText"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -65,7 +65,7 @@
                 android:layout_marginLeft="4dp"
                 android:gravity="center"
                 android:text="—"
-                android:textColor="@color/text_dim"
+                android:textColor="?attr/appTextMuted"
                 android:textSize="14sp" />
         </LinearLayout>
 
@@ -87,7 +87,7 @@
             android:layout_marginRight="4dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="@color/text_dim"
+            android:textColor="?attr/appTextMuted"
             android:textSize="11sp" />
     </LinearLayout>
 

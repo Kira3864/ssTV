@@ -71,6 +71,7 @@ object Downloader {
         }
         val target = File(dir, "$key.$ext")
         if (target.exists() && target.length() > 1024) {
+            DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic))
             onProgress(DlReport(100, target.length(), target.length(), 0))
             return target
         }
@@ -100,8 +101,8 @@ object Downloader {
         }
         if (target.exists()) target.delete()
         if (!tmp.renameTo(target)) {
-            return runCatching { tmp.copyTo(target, overwrite = true); tmp.delete(); target }
-                .getOrNull()
+            val copied = runCatching { tmp.copyTo(target, overwrite = true); tmp.delete(); target }.getOrNull()
+            if (copied == null) return null
         }
         DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic))
         return target
@@ -127,7 +128,6 @@ object Downloader {
             }
         }
 
-        val base = url.substringBeforeLast('/', "")
         val segs = text.lines().map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") }
         if (segs.isEmpty()) return false
@@ -143,7 +143,7 @@ object Downloader {
         val jobs = ArrayList<java.util.concurrent.Future<Boolean>>(total)
         for (i in 0 until total) {
             val idx = i
-            val segUrl = resolve(base, segs[i])
+            val segUrl = resolve(url, segs[i])
             jobs.add(pool.submit<Boolean> {
                 if (flag?.cancelled == true) return@submit false
                 val f = File(segDir, "%06d.ts".format(idx))
@@ -228,6 +228,7 @@ object Downloader {
                     }
                 }
             }
+            if (totalLen > 0 && out.length() != totalLen) return false
             report(100, out.length(), if (totalLen > 0) totalLen else out.length())
         } finally {
             conn.disconnect()

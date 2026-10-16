@@ -10,7 +10,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.songshu.sstv.cache.DlHub
@@ -22,7 +21,7 @@ import com.songshu.sstv.ui.Dlg
 import com.songshu.sstv.ui.Img
 import java.io.File
 
-class CacheActivity : AppCompatActivity() {
+class CacheActivity : ThemedActivity() {
 
     private lateinit var list: RecyclerView
     private lateinit var summary: TextView
@@ -157,37 +156,37 @@ class CacheActivity : AppCompatActivity() {
         when (t.state) {
             DlState.RUN -> {
                 state.text = if (t.stage.isNotEmpty()) "${t.stage} · ${t.epName}" else t.epName
-                state.setTextColor(0xFFE62429.toInt())
-                percent.setTextColor(0xFFF2F4F7.toInt())
+                state.setTextColor(themeColor(R.attr.appAccent))
+                percent.setTextColor(themeColor(R.attr.appText))
                 detail.text = speedLine(t)
                 btn.text = "取消"
-                btn.setTextColor(0xFF98A2B3.toInt())
+                btn.setTextColor(themeColor(R.attr.appTextMuted))
             }
             DlState.OK -> {
                 state.text = t.note
-                state.setTextColor(0xFF3FB950.toInt())
-                percent.setTextColor(0xFF3FB950.toInt())
+                state.setTextColor(themeColor(R.attr.appSuccess))
+                percent.setTextColor(themeColor(R.attr.appSuccess))
                 detail.text = if (t.epCount > 1) "挑的这几集都进下面的列表了" else "已经躺在下面的列表里了"
                 btn.text = "关闭"
-                btn.setTextColor(0xFF98A2B3.toInt())
+                btn.setTextColor(themeColor(R.attr.appTextMuted))
             }
             DlState.CANCELED -> {
                 state.text = t.note
-                state.setTextColor(0xFF98A2B3.toInt())
+                state.setTextColor(themeColor(R.attr.appTextMuted))
                 percent.text = "—"
-                percent.setTextColor(0xFF98A2B3.toInt())
+                percent.setTextColor(themeColor(R.attr.appTextMuted))
                 detail.text = "没下完的部分已经清掉了"
                 btn.text = "关闭"
-                btn.setTextColor(0xFF98A2B3.toInt())
+                btn.setTextColor(themeColor(R.attr.appTextMuted))
             }
             DlState.FAIL -> {
                 state.text = t.note
-                state.setTextColor(0xFFE62429.toInt())
+                state.setTextColor(themeColor(R.attr.appAccent))
                 percent.text = "—"
-                percent.setTextColor(0xFFE62429.toInt())
+                percent.setTextColor(themeColor(R.attr.appAccent))
                 detail.text = "地址可能过期了，回影片页再点一次缓存试试"
                 btn.text = "关闭"
-                btn.setTextColor(0xFF98A2B3.toInt())
+                btn.setTextColor(themeColor(R.attr.appTextMuted))
             }
         }
     }
@@ -219,6 +218,7 @@ class CacheActivity : AppCompatActivity() {
         val arr = arrayListOf(item.sub + "\u0001" + uri)
         startActivity(
             Intent(this, PlayerActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 .putExtra("title", item.title)
                 .putStringArrayListExtra("eps", arr)
                 .putExtra("index", 0)
@@ -243,6 +243,7 @@ class DlAdapter(
     private val data = ArrayList<DlItem>()
 
     fun submit(l: List<DlItem>) {
+        if (data == l) return
         data.clear()
         data.addAll(l)
         notifyDataSetChanged()

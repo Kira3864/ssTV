@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.songshu.sstv.data.Source
@@ -35,7 +34,7 @@ import java.util.Calendar
  * 而多值 `t=6,7,8` 会被服务端当整数取第一个（实测确认），所以**做不了「全部电影」**。
  * 因此选中一级分类后会自动落到它的第一个子类，二级横条里再左右挑。
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : ThemedActivity() {
 
     private lateinit var grid: RecyclerView
     private lateinit var adapter: VodAdapter
@@ -71,11 +70,17 @@ class MainActivity : AppCompatActivity() {
     private var pageCount = 1
     private var loading = false
     private var loadedFor = ""
+    private var classRequest = 0
+    private var pageRequest = 0
+    private var classJob: java.util.concurrent.Future<*>? = null
+    private var pageJob: java.util.concurrent.Future<*>? = null
+    private var restoredFilter: Bundle? = null
 
     private val src: Source get() = SourceStore.current(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        restoredFilter = savedInstanceState
         setContentView(R.layout.activity_main)
 
         grid = findViewById(R.id.grid)
@@ -92,20 +97,24 @@ class MainActivity : AppCompatActivity() {
         adapter = VodAdapter(dp(150)) { openDetail(it) }
         applySpan()
         grid.adapter = adapter
+        grid.itemAnimator = null
+        grid.setItemViewCacheSize(8)
+        grid.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(view: RecyclerView, dx: Int, dy: Int) {
+                if (dy > 0 && !loading && page < pageCount &&
+                    (grid.layoutManager as GridLayoutManager).findLastVisibleItemPosition() >= adapter.itemCount - 9) {
+                    loadPage(page + 1, true)
+                }
+            }
+        })
 
-        findViewById<View>(R.id.searchBox).setOnClickListener {
-            startActivity(Intent(this, SearchActivity::class.java))
-        }
-        findViewById<View>(R.id.btnSettings).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-        findViewById<View>(R.id.btnCache).setOnClickListener {
-            startActivity(Intent(this, CacheActivity::class.java))
-        }
-        findViewById<View>(R.id.btnHistory).setOnClickListener {
-            startActivity(Intent(this, HistoryActivity::class.java))
+        findViewById<View>(R.id.filterToggle).setOnClickListener {
+            val panel = findViewById<View>(R.id.filterPanel)
+            panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            updateFilterLabel()
         }
         sourceLabel.setOnClickListener { pickSource() }
+        hint.setOnClickListener { if (curRoot == null) loadClasses() else loadPage(1, false) }
         btnMore.setOnClickListener {
             if (page < pageCount) loadPage(page + 1, append = true)
         }
@@ -114,9 +123,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         val s = src
-        sourceLabel.text = "片源：${s.name}（点这里换源）"
-        if (loadedFor != s.name) {
-            loadedFor = s.name
+        sourceLabel.text = "${s.name} ▾"
+        val identity = "${s.api}|${s.name}|${SourceStore.filterAdult(this)}"
+        if (loadedFor != identity) {
+            loadedFor = identity
             loadClasses()
         }
     }
@@ -132,30 +142,38 @@ class MainActivity : AppCompatActivity() {
         grid.layoutManager = GridLayoutManager(this, span)
         val padDp = 20
         val itemDp = (w - padDp) / span
-        adapter.setPicHeight((itemDp * 1.42f * resources.displayMetrics.density).toInt())
+        adapter.setPicHeight(((itemDp - 12) * 1.42f * resources.displayMetrics.density).toInt())
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun pickSource() {
         val all = SourceStore.sources(this)
-        val names = all.map { "${it.name}\n${it.api}" }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("选择片源")
-            .setItems(names) { _, i ->
-                SourceStore.setCurrent(this, all[i])
-                loadedFor = ""
-                onResume()
-            }
-            .setNeutralButton("管理片源") { _, _ ->
-                startActivity(Intent(this, SettingsActivity::class.java))
-            }
-            .show()
+        com.songshu.sstv.ui.SourcePicker.show(this, all, src.api) { selected ->
+            SourceStore.setCurrent(this, selected)
+            sourceLabel.text = "${selected.name} ▾"
+            loadedFor = "${selected.api}|${selected.name}|${SourceStore.filterAdult(this)}"
+            loadClasses()
+        }
+    }
+
+    private fun updateFilterLabel() {
+        val values = listOf(roots.firstOrNull { it.id == curRoot }?.name ?: "最新更新",
+            kids[curRoot].orEmpty().firstOrNull { it.id == curSub }?.name.orEmpty(),
+            if (curYear.isBlank()) "" else yearText()).filter { it.isNotBlank() }
+        val open = findViewById<View>(R.id.filterPanel).visibility == View.VISIBLE
+        findViewById<TextView>(R.id.filterToggle).text = values.joinToString(" · ") + if (open) "    收起 ▴" else "    筛选 ▾"
     }
 
     // ───────────────────────── 分类加载 ─────────────────────────
 
     private fun loadClasses() {
+        classJob?.cancel(true)
+        pageJob?.cancel(true)
+        val request = ++classRequest
+        ++pageRequest
+        loading = false
+        curRoot = null
         progress.visibility = View.VISIBLE
         hint.visibility = View.GONE
         btnMore.visibility = View.GONE
@@ -168,15 +186,16 @@ class MainActivity : AppCompatActivity() {
         roots = emptyList()
         kids.clear()
         val s = src
-        Bg.io.execute {
+        classJob = Bg.io.submit {
             val r = runCatching { VodApi.classes(s.api) }
-            runOnUiThread {
+            showResult {
+                if (request != classRequest) return@showResult
                 progress.visibility = View.GONE
                 val all = r.getOrNull()
                 if (all.isNullOrEmpty()) {
                     hint.text = "这个源连不上或已失效，去设置里换一个"
                     hint.visibility = View.VISIBLE
-                    return@runOnUiThread
+                    return@showResult
                 }
                 // 成人分类在这一层就滤掉（「理论片」「伦理片」「里番动漫」等都会被命中）
                 val ok = if (SourceStore.filterAdult(this)) {
@@ -196,9 +215,12 @@ class MainActivity : AppCompatActivity() {
                 // 默认落到第一个真实大类（「电影片」），而不是「最新更新」。
                 // 原因：「最新更新」没有子分类，第二排会整行隐藏，
                 // 一打开只剩一排会让人以为筛选功能根本没做（v1.6 就是这么被误会的）。
-                curRoot = roots.firstOrNull()?.id ?: ""
-                curSub = ""
-                curYear = ""
+                val saved = restoredFilter?.takeIf { it.getString("sourceApi") == s.api }
+                val selectedRoot = saved?.getString("root")
+                curRoot = if (selectedRoot == "" || roots.any { it.id == selectedRoot }) selectedRoot else roots.firstOrNull()?.id ?: ""
+                curSub = saved?.getString("sub").orEmpty()
+                curYear = saved?.getString("year").orEmpty().takeIf { y -> years.any { it.first == y } }.orEmpty()
+                restoredFilter = null
                 buildRootRow()
                 buildSubRow()
                 buildYearRow()
@@ -299,7 +321,7 @@ class MainActivity : AppCompatActivity() {
         // ⚠️ v1.6 的真 bug：loadClasses() 里把 yearScroll 设成了 GONE，
         // 而这里从来没把它设回 VISIBLE —— 所以「年份」整行永远不显示。
         yearScroll.visibility = View.VISIBLE
-        highlight(yearRow, 0)
+        highlight(yearRow, years.indexOfFirst { it.first == curYear })
     }
 
     private fun chip(text: String, small: Boolean): TextView {
@@ -308,11 +330,14 @@ class MainActivity : AppCompatActivity() {
         tv.textSize = if (small) 12f else 13f
         tv.setPadding(dp(if (small) 12 else 14), dp(if (small) 6 else 7),
             dp(if (small) 12 else 14), dp(if (small) 6 else 7))
-        val lp = LinearLayout.LayoutParams(-2, -2)
+        tv.gravity = android.view.Gravity.CENTER
+        tv.includeFontPadding = false
+        val lp = LinearLayout.LayoutParams(-2, dp(34))
         lp.rightMargin = dp(8)
         tv.layoutParams = lp
+        com.songshu.sstv.ui.Motion.interactive(tv)
         tv.background = getDrawable(R.drawable.bg_chip)
-        tv.setTextColor(0xFF98A2B3.toInt())
+        tv.setTextColor(themeColor(R.attr.appTextMuted))
         return tv
     }
 
@@ -320,11 +345,12 @@ class MainActivity : AppCompatActivity() {
         for (k in 0 until row.childCount) {
             val tv = row.getChildAt(k) as TextView
             if (k == index) {
-                tv.setTextColor(0xFFFFFFFF.toInt())
+                tv.setTextColor(themeColor(R.attr.appOnAccent))
                 tv.background = getDrawable(R.drawable.bg_btn_primary)
             } else {
-                tv.setTextColor(0xFF98A2B3.toInt())
-                tv.background = getDrawable(R.drawable.bg_chip)
+                tv.setTextColor(themeColor(R.attr.appTextMuted))
+                com.songshu.sstv.ui.Motion.interactive(tv)
+        tv.background = getDrawable(R.drawable.bg_chip)
             }
         }
     }
@@ -336,7 +362,10 @@ class MainActivity : AppCompatActivity() {
     // ───────────────────────── 列表加载 ─────────────────────────
 
     private fun loadPage(p: Int, append: Boolean) {
-        if (loading || curRoot == null) return
+        updateFilterLabel()
+        if (curRoot == null || (append && loading)) return
+        pageJob?.cancel(true)
+        val request = ++pageRequest
         loading = true
         btnMore.visibility = View.GONE
         if (!append) {
@@ -348,18 +377,20 @@ class MainActivity : AppCompatActivity() {
         // 有子类就用子类；一级本身是叶子就用它自己；「最新更新」不带 t
         val type = if (curSub.isNotBlank()) curSub else (curRoot ?: "")
         val year = curYear
-        Bg.io.execute {
+        pageJob = Bg.io.submit {
             val r = runCatching { VodApi.listByType(s.api, type, p, s.name, year) }
-            runOnUiThread {
+            showResult {
+                if (request != pageRequest) return@showResult
                 loading = false
                 progress.visibility = View.GONE
                 val pg = r.getOrNull()
                 if (pg == null) {
-                    if (adapter.itemCount == 0) {
-                        hint.text = getString(R.string.error_net)
+                    if (adapter.dataCount == 0) {
+                        hint.text = getString(R.string.error_net) + "\n轻触重试"
                         hint.visibility = View.VISIBLE
                     }
-                    return@runOnUiThread
+                    btnMore.visibility = if (append) View.VISIBLE else View.GONE
+                    return@showResult
                 }
                 page = pg.page
                 pageCount = pg.pageCount
@@ -367,7 +398,7 @@ class MainActivity : AppCompatActivity() {
                     pg.list.filter { !SourceStore.isAdultCategory(it.typeName) }
                 } else pg.list
                 adapter.submit(items, append)
-                if (adapter.itemCount == 0) {
+                if (adapter.dataCount == 0) {
                     hint.text = when {
                         year.isNotBlank() ->
                             "「${yearText()}」这个年份在这条分类下没有内容。\n" +
@@ -380,6 +411,20 @@ class MainActivity : AppCompatActivity() {
                 btnMore.visibility = if (page < pageCount) View.VISIBLE else View.GONE
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("sourceApi", src.api)
+        outState.putString("root", curRoot)
+        outState.putString("sub", curSub)
+        outState.putString("year", curYear)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onDestroy() {
+        classJob?.cancel(true)
+        pageJob?.cancel(true)
+        super.onDestroy()
     }
 
     private fun openDetail(v: com.songshu.sstv.data.Vod) {

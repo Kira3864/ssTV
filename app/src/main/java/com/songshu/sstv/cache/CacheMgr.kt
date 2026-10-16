@@ -7,6 +7,7 @@ import androidx.media3.datasource.cache.SimpleCache
 import java.io.File
 
 /** 在线播放的边看边缓存。播过的片段留在本地，断网可接着放。 */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 object CacheMgr {
 
     private const val MAX_BYTES = 2L * 1024 * 1024 * 1024 // 2GB 上限，LRU 自动淘汰
@@ -33,10 +34,9 @@ object CacheMgr {
 
     @Synchronized
     fun clear(ctx: Context) {
-        runCatching { inst?.release() }
-        inst = null
         runCatching {
-            SimpleCache.delete(dir(ctx), StandaloneDatabaseProvider(ctx))
+            val cache = get(ctx)
+            cache.keys.toList().forEach { cache.removeResource(it) }
         }
     }
 }

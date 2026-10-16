@@ -121,18 +121,18 @@ object SourceStore {
         save(c, DEFAULT)
         sp(c).edit()
             .putInt(K_PRESET_VER, PRESET_VER)
-            .putString(K_CUR, DEFAULT.first().name)
+            .putString(K_CUR, DEFAULT.first().api)
             .apply()
     }
 
     fun current(c: Context): Source {
         val cur = sp(c).getString(K_CUR, null)
         val all = sources(c)
-        return all.firstOrNull { it.name == cur } ?: all.first()
+        return all.firstOrNull { it.api == cur } ?: all.firstOrNull { it.name == cur } ?: all.first()
     }
 
     fun setCurrent(c: Context, s: Source) {
-        sp(c).edit().putString(K_CUR, s.name).apply()
+        sp(c).edit().putString(K_CUR, s.api).apply()
     }
 
     fun filterAdult(c: Context): Boolean = sp(c).getBoolean(K_ADULT, true)

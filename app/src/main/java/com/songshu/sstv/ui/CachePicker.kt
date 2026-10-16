@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import com.songshu.sstv.R
+import com.songshu.sstv.themeColor
 
 /**
  * 「选要缓存哪几集」面板。
@@ -48,7 +49,7 @@ object CachePicker {
         val d = ctx.resources.displayMetrics.density
         fun px(v: Float) = (v * d).toInt()
 
-        val sel = selected.copyOf()
+        val sel = selected.copyOf(eps.size)
         val cells = ArrayList<TextView>()     // 下标 = 集号
         var anchor = -1                       // 长按圈区间时的起点：最近一次点过的那一集
         var countTv: TextView? = null
@@ -67,10 +68,10 @@ object CachePicker {
                 )
                 cells[i].setTextColor(
                     when {
-                        on -> 0xFFFFFFFF.toInt()
-                        marks.getOrNull(i) == Mark.DONE -> 0xFF3FB950.toInt()
+                        on -> ctx.themeColor(R.attr.appOnAccent)
+                        marks.getOrNull(i) == Mark.DONE -> ctx.themeColor(R.attr.appSuccess)
                         marks.getOrNull(i) == Mark.DOING -> 0xFFFFB020.toInt()
-                        else -> 0xFFC7CDD6.toInt()
+                        else -> ctx.themeColor(R.attr.appText)
                     }
                 )
             }
@@ -107,7 +108,7 @@ object CachePicker {
         }
         val cTv = TextView(ctx).apply {
             textSize = 14f
-            setTextColor(0xFFF2F4F7.toInt())
+            setTextColor(ctx.themeColor(R.attr.appText))
         }
         countTv = cTv
         head.addView(cTv, LinearLayout.LayoutParams(0, -2, 1f))
@@ -117,7 +118,7 @@ object CachePicker {
             textSize = 13f
             gravity = Gravity.CENTER
             setPadding(px(12f), px(7f), px(12f), px(7f))
-            setTextColor(0xFFE62429.toInt())
+            setTextColor(ctx.themeColor(R.attr.appAccent))
             setOnClickListener { for (i in sel.indices) sel[i] = true; paint() }
         })
         head.addView(TextView(ctx).apply {
@@ -125,7 +126,7 @@ object CachePicker {
             textSize = 13f
             gravity = Gravity.CENTER
             setPadding(px(12f), px(7f), px(12f), px(7f))
-            setTextColor(0xFF98A2B3.toInt())
+            setTextColor(ctx.themeColor(R.attr.appTextMuted))
             setOnClickListener { for (i in sel.indices) sel[i] = false; paint() }
         })
 
@@ -135,7 +136,7 @@ object CachePicker {
             else
                 "点一下勾上"
             textSize = 11.5f
-            setTextColor(0xFF98A2B3.toInt())
+            setTextColor(ctx.themeColor(R.attr.appTextMuted))
             setPadding(px(20f), px(6f), px(20f), px(4f))
         }
 

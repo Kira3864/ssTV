@@ -7,7 +7,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.AsyncListDiffer
+import androidx.recyclerview.widget.DiffUtil
 import com.songshu.sstv.R
+import com.songshu.sstv.ThemeStore
 import com.songshu.sstv.data.Vod
 
 /** 影片网格适配器 */
@@ -16,17 +19,24 @@ class VodAdapter(
     private val onClick: (Vod) -> Unit
 ) : RecyclerView.Adapter<VodAdapter.VH>() {
 
-    private val items = ArrayList<Vod>()
+    private val differ = AsyncListDiffer(this, object : DiffUtil.ItemCallback<Vod>() {
+        override fun areItemsTheSame(old: Vod, new: Vod) =
+            old.id == new.id && old.sourceApi == new.sourceApi
+        override fun areContentsTheSame(old: Vod, new: Vod) = old == new
+    })
+    private val items get() = differ.currentList
+    private var submitted = emptyList<Vod>()
+    val dataCount get() = submitted.size
 
     fun submit(list: List<Vod>, append: Boolean) {
-        if (!append) items.clear()
-        items.addAll(list)
-        notifyDataSetChanged()
+        submitted = ((if (append) submitted else emptyList()) + list)
+            .distinctBy { it.sourceApi to it.id }
+        differ.submitList(submitted)
     }
 
     fun clear() {
-        items.clear()
-        notifyDataSetChanged()
+        submitted = emptyList()
+        differ.submitList(submitted)
     }
 
     fun setPicHeight(h: Int) {
@@ -57,7 +67,7 @@ class VodAdapter(
             lp.height = picHeight
             holder.pic.layoutParams = lp
         }
-        Img.round(holder.pic, holder.pic.resources.displayMetrics.density * 6f)
+        Img.round(holder.pic, holder.pic.resources.displayMetrics.density * ThemeStore.current(holder.pic.context).radius)
         Img.load(holder.pic, item.pic)
 
         holder.name.text = item.name
@@ -69,5 +79,12 @@ class VodAdapter(
             }
         }
         holder.itemView.setOnClickListener { onClick(item) }
+        holder.itemView.contentDescription = "${item.name}，${item.remark.ifBlank { item.typeName }}"
+        Motion.interactive(holder.itemView)
+    }
+
+    override fun onViewRecycled(holder: VH) {
+        Img.load(holder.pic, null)
+        super.onViewRecycled(holder)
     }
 }

@@ -1,29 +1,110 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@color/bg</item>
-        <item name="android:statusBarColor">@color/bg</item>
-        <item name="android:navigationBarColor">@color/bg</item>
-        <item name="android:textColorPrimary">@color/text</item>
-        <item name="android:textColorSecondary">@color/text_dim</item>
-        <item name="colorAccent">@color/primary</item>
+        <item name="appBg">#101014</item>
+        <item name="appSurface">#202027</item>
+        <item name="appSurfaceAlt">#2C2B35</item>
+        <item name="appAccent">#CE334A</item>
+        <item name="appAccentDim">#722334</item>
+        <item name="appText">#F7F3F2</item>
+        <item name="appTextMuted">#AAA6B5</item>
+        <item name="appDivider">#373440</item>
+        <item name="appSuccess">#63D79C</item>
+        <item name="appOnAccent">#FFFFFF</item>
+        <item name="appGlow">#301923</item>
+        <item name="appCorner">12dp</item>
+        <item name="appPillCorner">18dp</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowBackground">?attr/appBg</item>
+        <item name="android:statusBarColor">?attr/appBg</item>
+        <item name="android:navigationBarColor">?attr/appBg</item>
+        <item name="android:colorBackground">?attr/appSurface</item>
+        <item name="android:textColorPrimary">?attr/appText</item>
+        <item name="android:textColorSecondary">?attr/appTextMuted</item>
+        <item name="android:textColorHint">?attr/appTextMuted</item>
+        <item name="colorAccent">?attr/appAccent</item>
+        <item name="colorControlNormal">?attr/appTextMuted</item>
+        <item name="colorControlActivated">?attr/appAccent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowAnimationStyle">@style/AppWindowAnimation</item>
     </style>
-
+    <style name="Theme.Aurora" parent="AppTheme">
+        <item name="appBg">#10182C</item>
+        <item name="appSurface">#1C2D46</item>
+        <item name="appSurfaceAlt">#273D58</item>
+        <item name="appAccent">#83EFCD</item>
+        <item name="appAccentDim">#355F60</item>
+        <item name="appText">#EAF5FF</item>
+        <item name="appTextMuted">#A6B8D1</item>
+        <item name="appDivider">#3B506C</item>
+        <item name="appSuccess">#83EFCD</item>
+        <item name="appOnAccent">#102C29</item>
+        <item name="appGlow">#213E57</item>
+        <item name="appCorner">24dp</item>
+        <item name="appPillCorner">28dp</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="Theme.Paper" parent="AppTheme">
+        <item name="appBg">#F7F2E8</item>
+        <item name="appSurface">#FFFCF5</item>
+        <item name="appSurfaceAlt">#EBE2D3</item>
+        <item name="appAccent">#974B32</item>
+        <item name="appAccentDim">#B78266</item>
+        <item name="appText">#302A23</item>
+        <item name="appTextMuted">#706453</item>
+        <item name="appDivider">#D6C9B6</item>
+        <item name="appSuccess">#39704C</item>
+        <item name="appOnAccent">#FFFFFF</item>
+        <item name="appGlow">#EDE0CC</item>
+        <item name="appCorner">6dp</item>
+        <item name="appPillCorner">6dp</item>
+        <item name="android:fontFamily">serif</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="alertDialogTheme">@style/PaperDialog</item>
+    </style>
+    <style name="Theme.Terminal" parent="AppTheme">
+        <item name="appBg">#09130F</item>
+        <item name="appSurface">#12251B</item>
+        <item name="appSurfaceAlt">#1B3224</item>
+        <item name="appAccent">#A9EE80</item>
+        <item name="appAccentDim">#4A7240</item>
+        <item name="appText">#E0F2DB</item>
+        <item name="appTextMuted">#9BB393</item>
+        <item name="appDivider">#35513D</item>
+        <item name="appSuccess">#A9EE80</item>
+        <item name="appOnAccent">#142310</item>
+        <item name="appGlow">#142E1E</item>
+        <item name="appCorner">2dp</item>
+        <item name="appPillCorner">2dp</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+    <style name="PaperDialog" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="colorAccent">#974B32</item>
+        <item name="android:colorBackground">#FFFCF5</item>
+        <item name="android:textColorPrimary">#302A23</item>
+        <item name="android:textColorSecondary">#706453</item>
+    </style>
     <style name="PlayerTheme" parent="AppTheme">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
     </style>
-
+    <style name="AppWindowAnimation">
+        <item name="android:activityOpenEnterAnimation">@anim/page_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/page_exit</item>
+        <item name="android:activityCloseEnterAnimation">@anim/page_enter</item>
+        <item name="android:activityCloseExitAnimation">@anim/page_exit</item>
+    </style>
     <style name="Chip">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:gravity">center</item>
         <item name="android:paddingLeft">14dp</item>
         <item name="android:paddingRight">14dp</item>
         <item name="android:paddingTop">7dp</item>
         <item name="android:paddingBottom">7dp</item>
         <item name="android:textSize">13sp</item>
-        <item name="android:textColor">@color/text_dim</item>
+        <item name="android:textColor">?attr/appTextMuted</item>
         <item name="android:background">@drawable/bg_chip</item>
     </style>
 </resources>

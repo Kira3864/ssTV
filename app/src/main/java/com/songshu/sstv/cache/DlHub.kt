@@ -106,7 +106,7 @@ object DlHub {
         synchronized(tasks) {
             tasks.add(0, t)
             val done = tasks.filter { it.state != DlState.RUN }
-            if (done.size > KEEP_DONE) tasks.removeAll(done.take(done.size - KEEP_DONE))
+            if (done.size > KEEP_DONE) tasks.removeAll(done.drop(KEEP_DONE))
         }
         // 通知的失败不能连累下载本身，包一层
         runCatching { onTaskCreated?.invoke() }

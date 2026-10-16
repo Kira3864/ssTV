@@ -59,6 +59,7 @@ object DlStore {
         sp(c).edit().putString(K, a.toString()).apply()
     }
 
+    @Synchronized
     fun add(c: Context, item: DlItem) {
         val l = list(c)
         l.removeAll { it.url == item.url }
@@ -66,6 +67,7 @@ object DlStore {
         save(c, l)
     }
 
+    @Synchronized
     fun remove(c: Context, url: String) {
         val l = list(c)
         l.removeAll { it.url == url }

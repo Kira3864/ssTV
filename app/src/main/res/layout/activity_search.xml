@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg"
+    android:background="@drawable/bg_page"
     android:fitsSystemWindows="true">
 
     <LinearLayout
@@ -24,7 +24,7 @@
             android:paddingLeft="12dp"
             android:paddingRight="12dp"
             android:text="返回"
-            android:textColor="@color/text_dim"
+            android:textColor="?attr/appTextMuted"
             android:textSize="14sp" />
 
         <EditText
@@ -39,8 +39,8 @@
             android:paddingLeft="14dp"
             android:paddingRight="14dp"
             android:singleLine="true"
-            android:textColor="@color/text"
-            android:textColorHint="@color/text_dim"
+            android:textColor="?attr/appText"
+            android:textColorHint="?attr/appTextMuted"
             android:textSize="14sp" />
 
         <TextView
@@ -53,7 +53,7 @@
             android:paddingLeft="16dp"
             android:paddingRight="16dp"
             android:text="搜索"
-            android:textColor="#FFFFFF"
+            android:textColor="?attr/appOnAccent"
             android:textSize="14sp" />
     </LinearLayout>
 
@@ -63,7 +63,7 @@
         android:layout_height="wrap_content"
         android:layout_marginLeft="17dp"
         android:layout_marginBottom="6dp"
-        android:textColor="@color/text_dim"
+        android:textColor="?attr/appTextMuted"
         android:textSize="12sp" />
 
     <FrameLayout
@@ -91,9 +91,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:textColor="@color/text_dim"
+            android:textColor="?attr/appTextMuted"
             android:textSize="14sp"
             android:visibility="gone" />
     </FrameLayout>
 
+<com.songshu.sstv.ui.BottomNav android:layout_width="match_parent" android:layout_height="56dp" />
 </LinearLayout>

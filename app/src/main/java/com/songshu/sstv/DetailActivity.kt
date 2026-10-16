@@ -12,7 +12,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.songshu.sstv.cache.DlHub
 import com.songshu.sstv.cache.DlRunner
@@ -26,7 +25,7 @@ import com.songshu.sstv.ui.CachePicker
 import com.songshu.sstv.ui.Dlg
 import com.songshu.sstv.ui.Img
 
-class DetailActivity : AppCompatActivity() {
+class DetailActivity : ThemedActivity() {
 
     private lateinit var pic: ImageView
     private lateinit var name: TextView
@@ -57,6 +56,7 @@ class DetailActivity : AppCompatActivity() {
 
     /** 自动换源只自动跑一次，免得几个源都没地址时来回弹 */
     private var autoTried = false
+    private var detailRequest = 0
 
     private var api = ""
     private var srcName = ""
@@ -92,7 +92,7 @@ class DetailActivity : AppCompatActivity() {
         fallbackName = intent.getStringExtra("name") ?: ""
         fallbackPic = intent.getStringExtra("pic") ?: ""
 
-        Img.round(pic, 8f * d)
+        Img.round(pic, ThemeStore.current(this).radius * d)
         Img.load(pic, fallbackPic)
         name.text = fallbackName
 
@@ -144,6 +144,7 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun load() {
+        val request = ++detailRequest
         if (vid.isBlank()) {
             showError("这部片子缺 ID，返回重进一次")
             return
@@ -157,15 +158,16 @@ class DetailActivity : AppCompatActivity() {
         val sn = srcName
         Bg.io.execute {
             val r = runCatching { VodApi.detail(a, id, sn) }
-            runOnUiThread {
+            showResult {
+                if (request != detailRequest) return@showResult
                 progress.visibility = View.GONE
                 val v = r.getOrNull()
                 if (v == null || v.lines.isEmpty()) {
                     // 这个源拿不到播放地址 —— 别让用户自己点换源，自动往下找
-                    if (!autoTried) autoSwitch() else showError(
+                    if (!autoTried) autoSwitch(request) else showError(
                         "换过的源也都没有播放地址。点右上角「换源」手动挑一个，或者换个片名重搜。"
                     )
-                    return@runOnUiThread
+                    return@showResult
                 }
                 vod = v
                 bind(v)
@@ -179,7 +181,7 @@ class DetailActivity : AppCompatActivity() {
      * 和「换源」按钮的区别：这个不用用户点，也不会弹列表，
      * 直接切过去并把剧集刷出来；只有全试完都失败才让用户自己挑。
      */
-    private fun autoSwitch() {
+    private fun autoSwitch(request: Int) {
         val nm = (vod?.name ?: fallbackName).trim()
         if (nm.isBlank()) {
             showError("这个源没有取到播放地址，点右上角「换源」试试")
@@ -216,16 +218,19 @@ class DetailActivity : AppCompatActivity() {
             }
             pool.shutdown()
             pool.awaitTermination(70, java.util.concurrent.TimeUnit.SECONDS)
+            pool.shutdownNow()
+            val snapshot = synchronized(found) { found.toList() }
 
-            runOnUiThread {
+            showResult {
+                if (request != detailRequest) return@showResult
                 progress.visibility = View.GONE
-                if (found.isEmpty()) {
+                if (snapshot.isEmpty()) {
                     showError("自动试了 ${others.size} 个源都没找到能播的。点右上角「换源」手动挑挑看。")
-                    return@runOnUiThread
+                    return@showResult
                 }
                 // 并发回来的顺序是乱的，按片源列表顺序挑第一个成功的 —— 等价于「一个一个往下试」
                 val order = others.mapIndexed { i, s -> s.api to i }.toMap()
-                val pick = found.minByOrNull { order[it.first.api] ?: Int.MAX_VALUE } ?: found[0]
+                val pick = snapshot.minByOrNull { order[it.first.api] ?: Int.MAX_VALUE } ?: snapshot[0]
 
                 api = pick.first.api
                 srcName = pick.first.name
@@ -297,7 +302,7 @@ class DetailActivity : AppCompatActivity() {
                 textSize = 13f
                 setPadding((14 * d).toInt(), (7 * d).toInt(), (14 * d).toInt(), (7 * d).toInt())
                 background = ContextCompat.getDrawable(this@DetailActivity, R.drawable.bg_chip)
-                setTextColor(0xFF98A2B3.toInt())
+                setTextColor(themeColor(R.attr.appTextMuted))
                 setOnClickListener {
                     lineIndex = i
                     tintRow()
@@ -316,10 +321,10 @@ class DetailActivity : AppCompatActivity() {
         for (k in 0 until fromRow.childCount) {
             val tv = fromRow.getChildAt(k) as TextView
             if (k == lineIndex) {
-                tv.setTextColor(0xFFFFFFFF.toInt())
+                tv.setTextColor(themeColor(R.attr.appOnAccent))
                 tv.background = ContextCompat.getDrawable(this, R.drawable.bg_btn_primary)
             } else {
-                tv.setTextColor(0xFF98A2B3.toInt())
+                tv.setTextColor(themeColor(R.attr.appTextMuted))
                 tv.background = ContextCompat.getDrawable(this, R.drawable.bg_chip)
             }
         }
@@ -357,7 +362,7 @@ class DetailActivity : AppCompatActivity() {
                     gravity = Gravity.CENTER
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
-                    setTextColor(0xFFF2F4F7.toInt())
+                    setTextColor(themeColor(R.attr.appText))
                     background = ContextCompat.getDrawable(this@DetailActivity, R.drawable.bg_episode)
                     setPadding((6 * d).toInt(), (12 * d).toInt(), (6 * d).toInt(), (12 * d).toInt())
                     setOnClickListener { play(i) }
@@ -382,6 +387,7 @@ class DetailActivity : AppCompatActivity() {
         line.episodes.forEach { arr.add(it.name + "\u0001" + it.url) }
         startActivity(
             Intent(this, PlayerActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 .putExtra("title", v.name)
                 .putExtra("line", line.name)
                 .putStringArrayListExtra("eps", arr)
@@ -464,6 +470,7 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private fun changeSource() {
+        val request = ++detailRequest
         val nm = (vod?.name ?: fallbackName).trim()
         if (nm.isEmpty()) return
         // 跳过当前源，也跳过站方关了搜索的源（它们搜不出来，白等）
@@ -488,13 +495,16 @@ class DetailActivity : AppCompatActivity() {
             }
             pool.shutdown()
             pool.awaitTermination(60, java.util.concurrent.TimeUnit.SECONDS)
-            runOnUiThread {
+            pool.shutdownNow()
+            val snapshot = synchronized(found) { found.toList() }
+            showResult {
+                if (request != detailRequest) return@showResult
                 progress.visibility = View.GONE
-                if (found.isEmpty()) {
+                if (snapshot.isEmpty()) {
                     Dlg.tip(this, "换源", "搜了 ${others.size} 个片源，都没找到这部。")
-                    return@runOnUiThread
+                    return@showResult
                 }
-                val sorted = found.sortedByDescending { it.second.name == nm }
+                val sorted = snapshot.sortedByDescending { it.second.name == nm }
                 val labels = sorted.map { "${it.first.name}  →  ${it.second.name}" }.toTypedArray()
                 AlertDialog.Builder(this)
                     .setTitle("换个源试试（找到 ${sorted.size} 个）")
@@ -504,6 +514,7 @@ class DetailActivity : AppCompatActivity() {
                         srcName = s.name
                         vid = nv.id
                         SourceStore.setCurrent(this, s)
+                        autoTried = false
                         load()
                     }
                     .show()
