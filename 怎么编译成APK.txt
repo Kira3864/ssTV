@@ -1,110 +1,43 @@
-﻿净影播放器 · 手机版 —— 源代码包
-版本 v1.16（versionCode 17）    打包时间 2026-10-16
-============================================================
+ssTV · 松鼠TV — 编译说明
+版本 1.16（versionCode 17）
 
-一、这是什么
-  安卓手机版的**完整源代码**。用 Android Studio 打开、或者直接用命令行编译，
-  都能出一个能装进手机的 APK。
+一、项目结构
+  settings.gradle                  项目名 ssTV
+  app/build.gradle                 版本、包名、签名与依赖配置
+  app/src/main/AndroidManifest.xml  权限、页面与服务声明
+  app/src/main/java/com/songshu/sstv/
+    App.kt                         应用入口
+    MainActivity.kt                首页
+    PlayerActivity.kt              播放页
+    SettingsActivity.kt            设置页
+    data/                          接口与数据
+    cache/                         缓存与下载
+    ui/                            界面组件
+  app/src/main/res/                布局、文本与图标
+  gradle/wrapper/                  Gradle Wrapper
 
-二、包里有什么
-  净影播放器-手机版-源码-v1.16/
-  ├─ app/                              App 本体
-  │   ├─ build.gradle                  编译配置（版本号、签名、依赖都在这）
-  │   ├─ proguard-rules.pro            混淆规则（当前没开混淆）
-  │   └─ src/main/
-  │       ├─ AndroidManifest.xml       权限、页面、后台服务声明
-  │       ├─ java/com/laoyang/jingying/
-  │       │   ├─ App.kt                入口
-  │       │   ├─ Bg.kt                 后台线程池 / 保活
-  │       │   ├─ Util.kt               工具函数
-  │       │   ├─ MainActivity.kt       首页（分类 + 最新更新）
-  │       │   ├─ DetailActivity.kt     影片详情 + 选集
-  │       │   ├─ PlayerActivity.kt     播放页（ExoPlayer，含手势）
-  │       │   ├─ CacheActivity.kt      我的缓存
-  │       │   ├─ SearchActivity.kt     搜索
-  │       │   ├─ HistoryActivity.kt    观看历史
-  │       │   ├─ SettingsActivity.kt   设置
-  │       │   ├─ data/                 ── 接口与数据
-  │       │   │   ├─ VodApi.kt             苹果CMS 采集接口调用
-  │       │   │   ├─ PlayResolver.kt       播放地址解析（含双层 m3u8 分流）
-  │       │   │   ├─ SourceStore.kt        片源列表（30 个实测源都在这）
-  │       │   │   ├─ HistoryStore.kt       观看历史存取
-  │       │   │   └─ Models.kt             数据模型
-  │       │   ├─ cache/                ── 缓存下载
-  │       │   │   ├─ Downloader.kt         分片下载 + 断点续传
-  │       │   │   ├─ DlHub.kt              下载任务调度中心
-  │       │   │   ├─ DlStore.kt            任务落盘
-  │       │   │   └─ CacheMgr.kt           缓存目录管理
-  │       │   └─ ui/                   ── 界面零件
-  │       │       ├─ SpiderView.kt         桌面那颗蜘蛛（全自绘，无图片）
-  │       │       ├─ DlOverlayService.kt   系统悬浮窗（前台服务）
-  │       │       ├─ DlOverlay.kt          悬浮窗权限申请与启停
-  │       │       ├─ CachePicker.kt        选集面板
-  │       │       ├─ VodAdapter.kt         列表适配器
-  │       │       ├─ Dlg.kt                弹框
-  │       │       └─ Img.kt                图片加载
-  │       └─ res/                      布局、图标、颜色、文案
-  ├─ gradlew / gradlew.bat             Gradle 启动脚本（不用自己装 Gradle）
-  ├─ gradle/wrapper/                   wrapper 本体（Gradle 8.7）
-  ├─ build.gradle                      根工程（AGP 8.5.2 / Kotlin 1.9.24）
-  ├─ settings.gradle                   仓库地址（已配国内阿里云镜像）
-  ├─ gradle.properties                 编译参数
-  ├─ local.properties                  ★ Android SDK 路径，换电脑要改这里
-  └─ keystore/jingying.jks             ★ 签名密钥，丢了就打不出能覆盖安装的包
+二、编译调试包
+  1. 准备 JDK 17、API 34 SDK 和 Build-Tools 34.0.0。
+  2. 在本地 local.properties 中设置 sdk.dir 指向 SDK 安装目录。
+     Windows 示例：sdk.dir=C:/sdk
+  3. 在项目根目录运行：
+       Windows：.\gradlew.bat assembleDebug
+       macOS / Linux：./gradlew assembleDebug
+  4. 输出：app/build/outputs/apk/debug/app-debug.apk。
+     调试构建使用本机自动生成的调试密钥，无需配置发布密钥。
 
-三、编译成 APK（命令行，不用装 Android Studio）
-  先准备三样：
-    ① JDK 17   （注意不是 8、不是 11 —— AGP 8.5 要求 17）
-    ② Android SDK：Platform 34 + Build-Tools 34.0.0
-    ③ 能上网（第一次编译要下依赖，仓库已经配成阿里云镜像）
+三、发布签名
+  将自己的密钥保存在本地 keystore/sstv.jks，或其他指定位置。
+  在用户目录的 .gradle/gradle.properties 中配置：
+    SSTV_STORE_FILE=keystore/sstv.jks
+    SSTV_STORE_PASSWORD=实际密钥库密码
+    SSTV_KEY_ALIAS=实际密钥别名
+    SSTV_KEY_PASSWORD=实际密钥密码
+  文件路径、别名及密码必须与真实密钥匹配，不能只修改文件名或别名。
+  运行 assembleRelease，输出目录为 app/build/outputs/apk/release/。
+  四项配置完整时使用指定密钥签名，未配置时输出未签名包。
+  密钥和密码请仅保存在本地，不要提交到仓库。
 
-  Windows 步骤：
-    1. 装好 JDK 17，设好环境变量 JAVA_HOME
-    2. 打开 local.properties，把 sdk.dir 改成你自己的 Android SDK 位置，例如：
-         sdk.dir=C\:\\Android\\Sdk
-       （冒号和反斜杠都要转义，格式就照着原来那行改，只换路径）
-    3. 在本目录开一个 cmd 窗口，敲：
-         gradlew.bat assembleRelease
-       第一次会去下 Gradle 8.7 本体（约 130MB，走华为云镜像，比官方快很多）
-    4. 编完，产物在：
-         app\build\outputs\apk\release\app-release.apk
-       这个 apk 直接装手机就行。
-
-  想编个带日志的调试版：
-     gradlew.bat assembleDebug
-
-  用 Android Studio 的话：
-     直接 File → Open 选这个文件夹，等 Sync 完，
-     菜单 Build → Generate Signed Bundle / APK 也可以。
-
-四、关于签名（重要，别跳过）
-  app/build.gradle 里已经写好签名配置，密钥就在 keystore/jingying.jks，
-  口令和别名也都写在配置里了。所以：
-    · 用这个包编出来的 APK，签名跟你手机里现在装的**完全一致**
-    · 可以直接覆盖安装，缓存、历史、设置都不会丢
-  ⚠️ keystore/jingying.jks 千万别弄丢、也别外传。
-     丢了以后再编的包签名就不一样了，装上去会提示「应用签名不一致」，
-     只能卸载重装 —— 缓存全没。
-
-五、这套代码是拿什么编出来的（实测可用，照抄就行）
-    Gradle            8.7
-    Android Gradle Plugin  8.5.2
-    Kotlin            1.9.24
-    compileSdk        34
-    minSdk            26   （安卓 8.0 及以上能装）
-    targetSdk         34
-    Java              17
-    依赖              androidx.core / appcompat / recyclerview / constraintlayout
-                      androidx.media3（ExoPlayer，播放内核）
-
-六、这一版（v1.16）能做到什么
-    · 30 个实测可用的苹果 CMS 片源，分类 / 搜索 / 播放地址三个环节都验过
-    · 搜索、详情、选集、播放、手势（左右滑调进度、双击暂停）、观看历史
-    · 缓存下载：分片并发、断点续传、AES-128 加密流、双层 m3u8 自动分流
-    · 桌面悬浮窗：退到后台、刷别的 App 也能看见缓存进度。
-      标志是一颗蜘蛛 —— 一开始近乎透明，随进度从下往上被淡蓝色填满，
-      下完了整只变淡蓝、开始呼吸灯式闪烁；长按可展开成胶囊，看百分比和速度
-
-七、免责
-  这个 App 自己不存任何影视内容，只是把公开的采集接口聚合起来给人看。
-  片源都是第三方的，随时可能失效或改地址 —— 一个源用不了就换一个。
+四、安装说明
+  应用名为松鼠TV，包名为 com.songshu.sstv。
+  系统将其视为新应用，旧应用的设置、历史和缓存不会自动迁移。

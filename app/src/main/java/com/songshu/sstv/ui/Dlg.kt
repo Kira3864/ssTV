@@ -1,4 +1,4 @@
-package com.laoyang.jingying.ui
+package com.songshu.sstv.ui
 
 import android.content.Context
 import android.text.InputType

@@ -1,4 +1,4 @@
-package com.laoyang.jingying.cache
+package com.songshu.sstv.cache
 
 import android.content.Context
 import org.json.JSONArray
@@ -18,7 +18,7 @@ data class DlItem(
 /** 已缓存列表的索引（存 SharedPreferences） */
 object DlStore {
 
-    private const val PREF = "jingying"
+    private const val PREF = "sstv"
     private const val K = "downloads"
 
     private fun sp(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)

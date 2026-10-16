@@ -1,9 +1,9 @@
-package com.laoyang.jingying.cache
+package com.songshu.sstv.cache
 
 import android.content.Context
-import com.laoyang.jingying.data.Mc
-import com.laoyang.jingying.data.PlayResolver
-import com.laoyang.jingying.data.VodApi
+import com.songshu.sstv.data.Mc
+import com.songshu.sstv.data.PlayResolver
+import com.songshu.sstv.data.VodApi
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection

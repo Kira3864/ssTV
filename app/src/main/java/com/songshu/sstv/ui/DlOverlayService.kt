@@ -1,4 +1,4 @@
-package com.laoyang.jingying.ui
+package com.songshu.sstv.ui
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -25,12 +25,12 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.laoyang.jingying.CacheActivity
-import com.laoyang.jingying.R
-import com.laoyang.jingying.cache.DlHub
-import com.laoyang.jingying.cache.DlState
-import com.laoyang.jingying.cache.DlTask
-import com.laoyang.jingying.fmtSize
+import com.songshu.sstv.CacheActivity
+import com.songshu.sstv.R
+import com.songshu.sstv.cache.DlHub
+import com.songshu.sstv.cache.DlState
+import com.songshu.sstv.cache.DlTask
+import com.songshu.sstv.fmtSize
 import kotlin.math.hypot
 
 /**
@@ -108,7 +108,7 @@ class DlOverlayService : Service() {
         //
         // 这一下是会失败的：Android 12 起，App 在后台时不允许起前台服务，
         // 系统会直接抛异常。真抛了**不能让它把进程带崩** —— 用户看到的就是
-        // 「FXXK 已停止运行」，比没有悬浮窗严重得多。起不来就安静撤退。
+        // 「松鼠TV 已停止运行」，比没有悬浮窗严重得多。起不来就安静撤退。
         val up = runCatching {
             ServiceCompat.startForeground(
                 this, NOTI_ID, buildNoti(getString(R.string.downloading), 0, false),
@@ -498,13 +498,13 @@ class DlOverlayService : Service() {
 
     companion object {
 
-        private const val CH_ID = "jy_overlay"
+        private const val CH_ID = "sstv_overlay"
 
         /** 通知 id，固定值 —— 免得每下一集就多攒一条通知 */
         private const val NOTI_ID = 0x4A59
 
         /** 记悬浮窗位置的偏好文件（故意和 DlOverlay 那个分开，别串了） */
-        private const val PREF = "jy_overlay_pos"
+        private const val PREF = "sstv_overlay_pos"
         private const val KEY_LEFT = "left"
         private const val KEY_Y = "y"
 

@@ -1,4 +1,4 @@
-package com.laoyang.jingying.ui
+package com.songshu.sstv.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -7,8 +7,8 @@ import android.util.LruCache
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.ImageView
-import com.laoyang.jingying.Bg
-import com.laoyang.jingying.data.VodApi
+import com.songshu.sstv.Bg
+import com.songshu.sstv.data.VodApi
 import java.net.HttpURLConnection
 import java.net.URL
 

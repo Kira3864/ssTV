@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.content.Intent
 import android.content.res.Configuration
@@ -10,11 +10,11 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.laoyang.jingying.data.Source
-import com.laoyang.jingying.data.SourceStore
-import com.laoyang.jingying.data.VodApi
-import com.laoyang.jingying.data.VodClass
-import com.laoyang.jingying.ui.VodAdapter
+import com.songshu.sstv.data.Source
+import com.songshu.sstv.data.SourceStore
+import com.songshu.sstv.data.VodApi
+import com.songshu.sstv.data.VodClass
+import com.songshu.sstv.ui.VodAdapter
 import java.util.Calendar
 
 /**
@@ -382,7 +382,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun openDetail(v: com.laoyang.jingying.data.Vod) {
+    private fun openDetail(v: com.songshu.sstv.data.Vod) {
         if (v.id.isBlank()) return
         startActivity(
             Intent(this, DetailActivity::class.java)

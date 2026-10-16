@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.os.Bundle
 import android.view.Gravity
@@ -8,13 +8,13 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
-import com.laoyang.jingying.cache.CacheMgr
-import com.laoyang.jingying.cache.DlStore
-import com.laoyang.jingying.data.Source
-import com.laoyang.jingying.data.SourceStore
-import com.laoyang.jingying.data.VodApi
-import com.laoyang.jingying.ui.Dlg
-import com.laoyang.jingying.ui.DlOverlay
+import com.songshu.sstv.cache.CacheMgr
+import com.songshu.sstv.cache.DlStore
+import com.songshu.sstv.data.Source
+import com.songshu.sstv.data.SourceStore
+import com.songshu.sstv.data.VodApi
+import com.songshu.sstv.ui.Dlg
+import com.songshu.sstv.ui.DlOverlay
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -76,7 +76,7 @@ class SettingsActivity : AppCompatActivity() {
         swAdult.setOnCheckedChangeListener { _, v -> SourceStore.setFilterAdult(this, v) }
         swCache.setOnCheckedChangeListener { _, v -> SourceStore.setAutoCache(this, v) }
 
-        // 版本号从包里读，不再硬编码 —— 之前写死的 "净影 v1.1" 挂了 6 个版本没跟上
+        // 版本号从包里读，不再硬编码 —— 之前写死的 "松鼠TV v1.1" 挂了 6 个版本没跟上
         @Suppress("DEPRECATION")
         val vn = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
             .getOrNull().orEmpty()

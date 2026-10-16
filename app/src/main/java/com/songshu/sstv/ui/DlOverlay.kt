@@ -1,4 +1,4 @@
-package com.laoyang.jingying.ui
+package com.songshu.sstv.ui
 
 import android.app.Activity
 import android.app.Application
@@ -7,8 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import com.laoyang.jingying.R
-import com.laoyang.jingying.cache.DlHub
+import com.songshu.sstv.R
+import com.songshu.sstv.cache.DlHub
 import java.lang.ref.WeakReference
 
 /**

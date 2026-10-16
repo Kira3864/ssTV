@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.content.Intent
 import android.net.Uri
@@ -13,13 +13,13 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.laoyang.jingying.cache.DlHub
-import com.laoyang.jingying.cache.DlItem
-import com.laoyang.jingying.cache.DlState
-import com.laoyang.jingying.cache.DlStore
-import com.laoyang.jingying.cache.DlTask
-import com.laoyang.jingying.ui.Dlg
-import com.laoyang.jingying.ui.Img
+import com.songshu.sstv.cache.DlHub
+import com.songshu.sstv.cache.DlItem
+import com.songshu.sstv.cache.DlState
+import com.songshu.sstv.cache.DlStore
+import com.songshu.sstv.cache.DlTask
+import com.songshu.sstv.ui.Dlg
+import com.songshu.sstv.ui.Img
 import java.io.File
 
 class CacheActivity : AppCompatActivity() {

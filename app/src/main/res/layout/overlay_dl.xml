@@ -92,7 +92,7 @@
     </LinearLayout>
 
     <!-- ② 蜘蛛（默认形态）。全自绘：见 SpiderView -->
-    <com.laoyang.jingying.ui.SpiderView
+    <com.songshu.sstv.ui.SpiderView
         android:id="@+id/ovBall"
         android:layout_width="64dp"
         android:layout_height="64dp"

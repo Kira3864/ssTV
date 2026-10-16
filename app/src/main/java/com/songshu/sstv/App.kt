@@ -1,7 +1,7 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.app.Application
-import com.laoyang.jingying.ui.DlOverlay
+import com.songshu.sstv.ui.DlOverlay
 
 class App : Application() {
 

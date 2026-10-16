@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.content.Context
 import android.content.Intent
@@ -10,11 +10,11 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.laoyang.jingying.data.Source
-import com.laoyang.jingying.data.SourceStore
-import com.laoyang.jingying.data.Vod
-import com.laoyang.jingying.data.VodApi
-import com.laoyang.jingying.ui.VodAdapter
+import com.songshu.sstv.data.Source
+import com.songshu.sstv.data.SourceStore
+import com.songshu.sstv.data.Vod
+import com.songshu.sstv.data.VodApi
+import com.songshu.sstv.ui.VodAdapter
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger

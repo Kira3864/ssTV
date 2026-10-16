@@ -1,4 +1,4 @@
-package com.laoyang.jingying.ui
+package com.songshu.sstv.ui
 
 import android.view.LayoutInflater
 import android.view.View
@@ -7,8 +7,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.laoyang.jingying.R
-import com.laoyang.jingying.data.Vod
+import com.songshu.sstv.R
+import com.songshu.sstv.data.Vod
 
 /** 影片网格适配器 */
 class VodAdapter(

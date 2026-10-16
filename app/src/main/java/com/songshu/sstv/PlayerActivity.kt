@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -40,18 +40,18 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.R as Media3R
-import com.laoyang.jingying.cache.CacheMgr
-import com.laoyang.jingying.cache.DlHub
-import com.laoyang.jingying.cache.DlRunner
-import com.laoyang.jingying.cache.Downloader
-import com.laoyang.jingying.data.HisItem
-import com.laoyang.jingying.data.HistoryStore
-import com.laoyang.jingying.data.Mc
-import com.laoyang.jingying.data.PlayResolver
-import com.laoyang.jingying.data.SourceStore
-import com.laoyang.jingying.data.VodApi
-import com.laoyang.jingying.ui.CachePicker
-import com.laoyang.jingying.ui.Dlg
+import com.songshu.sstv.cache.CacheMgr
+import com.songshu.sstv.cache.DlHub
+import com.songshu.sstv.cache.DlRunner
+import com.songshu.sstv.cache.Downloader
+import com.songshu.sstv.data.HisItem
+import com.songshu.sstv.data.HistoryStore
+import com.songshu.sstv.data.Mc
+import com.songshu.sstv.data.PlayResolver
+import com.songshu.sstv.data.SourceStore
+import com.songshu.sstv.data.VodApi
+import com.songshu.sstv.ui.CachePicker
+import com.songshu.sstv.ui.Dlg
 import java.net.URL
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -106,7 +106,7 @@ class PlayerActivity : AppCompatActivity() {
     private var longPressToken = 0
     private val longPressDelay = 400L
 
-    private val prefs by lazy { getSharedPreferences("jingying_player", MODE_PRIVATE) }
+    private val prefs by lazy { getSharedPreferences("sstv_player", MODE_PRIVATE) }
     private val audio by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     // ── 顶栏自动隐藏 ──

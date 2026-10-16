@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.content.Intent
 import android.os.Bundle
@@ -11,11 +11,11 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.laoyang.jingying.data.HisItem
-import com.laoyang.jingying.data.HistoryStore
-import com.laoyang.jingying.data.fmtAgo
-import com.laoyang.jingying.ui.Dlg
-import com.laoyang.jingying.ui.Img
+import com.songshu.sstv.data.HisItem
+import com.songshu.sstv.data.HistoryStore
+import com.songshu.sstv.data.fmtAgo
+import com.songshu.sstv.ui.Dlg
+import com.songshu.sstv.ui.Img
 
 /** 播放历史：点一条就直接接着上次的地方看 */
 class HistoryActivity : AppCompatActivity() {

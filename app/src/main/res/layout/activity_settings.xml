@@ -66,7 +66,7 @@
                 android:layout_marginLeft="18dp"
                 android:layout_marginRight="18dp"
                 android:layout_marginTop="4dp"
-                android:text="FXXK 只负责播放，不提供任何内容。下面每个源都是独立的影视接口，挂了就换一个。首页可以按大类、类型·地区、年份逐层挑片，搜索会把所有片源一起搜。"
+                android:text="松鼠TV 只负责播放，不提供任何内容。下面每个源都是独立的影视接口，挂了就换一个。首页可以按大类、类型·地区、年份逐层挑片，搜索会把所有片源一起搜。"
                 android:textColor="@color/text_dim"
                 android:textSize="12sp" />
 

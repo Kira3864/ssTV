@@ -1,4 +1,4 @@
-package com.laoyang.jingying.data
+package com.songshu.sstv.data
 
 import android.content.Context
 import org.json.JSONArray
@@ -26,7 +26,7 @@ data class HisItem(
 /** 播放历史（SharedPreferences 里的一个 JSON 数组，最多留 [MAX] 条） */
 object HistoryStore {
 
-    private const val PREF = "jingying"
+    private const val PREF = "sstv"
     private const val K = "history"
     private const val MAX = 200
 

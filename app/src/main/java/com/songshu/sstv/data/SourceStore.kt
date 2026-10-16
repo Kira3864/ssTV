@@ -1,4 +1,4 @@
-package com.laoyang.jingying.data
+package com.songshu.sstv.data
 
 import android.content.Context
 import org.json.JSONArray
@@ -8,14 +8,14 @@ data class Source(val name: String, val api: String)
 
 /**
  * 片源与偏好设置。
- * 净影本身不提供任何内容，只对接用户填写的 MacCMS 标准 JSON 接口。
+ * 松鼠TV本身不提供任何内容，只对接用户填写的 MacCMS 标准 JSON 接口。
  *
  * 预置源全部经过**真机同规则实测**（禁代理直连、按 App 的请求方式逐个验证
  * 分类 / 搜索 / 播放地址三个环节），不含任何成人内容源。
  */
 object SourceStore {
 
-    private const val PREF = "jingying"
+    private const val PREF = "sstv"
     private const val K_SRC = "sources"
     private const val K_CUR = "current"
     private const val K_ADULT = "filter_adult"

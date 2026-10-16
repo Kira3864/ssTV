@@ -1,4 +1,4 @@
-package com.laoyang.jingying.ui
+package com.songshu.sstv.ui
 
 import android.content.Context
 import android.text.TextUtils
@@ -10,7 +10,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
-import com.laoyang.jingying.R
+import com.songshu.sstv.R
 
 /**
  * 「选要缓存哪几集」面板。

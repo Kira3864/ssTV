@@ -1,4 +1,4 @@
-package com.laoyang.jingying.data
+package com.songshu.sstv.data
 
 /** 一集 */
 data class Episode(val name: String, val url: String)

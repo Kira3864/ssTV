@@ -1,4 +1,4 @@
-package com.laoyang.jingying
+package com.songshu.sstv
 
 import android.content.Context
 import android.content.Intent
@@ -14,17 +14,17 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.laoyang.jingying.cache.DlHub
-import com.laoyang.jingying.cache.DlRunner
-import com.laoyang.jingying.cache.Downloader
-import com.laoyang.jingying.data.HistoryStore
-import com.laoyang.jingying.data.Source
-import com.laoyang.jingying.data.SourceStore
-import com.laoyang.jingying.data.Vod
-import com.laoyang.jingying.data.VodApi
-import com.laoyang.jingying.ui.CachePicker
-import com.laoyang.jingying.ui.Dlg
-import com.laoyang.jingying.ui.Img
+import com.songshu.sstv.cache.DlHub
+import com.songshu.sstv.cache.DlRunner
+import com.songshu.sstv.cache.Downloader
+import com.songshu.sstv.data.HistoryStore
+import com.songshu.sstv.data.Source
+import com.songshu.sstv.data.SourceStore
+import com.songshu.sstv.data.Vod
+import com.songshu.sstv.data.VodApi
+import com.songshu.sstv.ui.CachePicker
+import com.songshu.sstv.ui.Dlg
+import com.songshu.sstv.ui.Img
 
 class DetailActivity : AppCompatActivity() {
 

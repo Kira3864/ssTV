@@ -1,4 +1,4 @@
-package com.laoyang.jingying.data
+package com.songshu.sstv.data
 
 import org.json.JSONObject
 import java.net.HttpURLConnection
