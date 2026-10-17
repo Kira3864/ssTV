@@ -15,7 +15,11 @@ import org.robolectric.annotation.Config
 class PlayerLayoutRegressionTest {
     @Test fun portraitVideoIsAtTopWithDetailsAndNavigationBelow() {
         ThemeStore.setReducedMotion(RuntimeEnvironment.getApplication(), true)
-        val controller = Robolectric.buildActivity(PlayerActivity::class.java).setup()
+        val app = RuntimeEnvironment.getApplication()
+        val launch = android.content.Intent(app, PlayerActivity::class.java)
+            .putExtra("title", "测试影片").putExtra("startPaused", true)
+            .putStringArrayListExtra("eps", arrayListOf("第一集\u0001file:/one.mp4", "第二集\u0001file:/two.mp4"))
+        val controller = Robolectric.buildActivity(PlayerActivity::class.java, launch).setup()
         try {
             val activity = controller.get()
             val root = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0)
@@ -37,7 +41,7 @@ class PlayerLayoutRegressionTest {
             assertEquals(MyActivity::class.java.name,
                 org.robolectric.Shadows.shadowOf(activity).nextStartedActivity.component!!.className)
             assertTrue(details.height > stage.height)
-            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.watchFind).visibility)
+            assertEquals(View.GONE, activity.findViewById<View>(R.id.watchFind).visibility)
             val next = android.content.Intent(activity, PlayerActivity::class.java)
                 .putExtra("title", "新影片")
                 .putStringArrayListExtra("eps", arrayListOf("第一集\u0001file:/example.mp4"))

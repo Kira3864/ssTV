@@ -24,6 +24,60 @@ import java.io.File
 @Config(sdk = [28], application = Application::class, qualifiers = "zh-rCN-w393dp-h851dp-port-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScreenPreviewTest {
+    @Test fun renderPlayerPortraitFullscreenAndEpisodeSheet() {
+        val app = RuntimeEnvironment.getApplication()
+        ThemeStore.select(app, ThemeStore.styles[2])
+        ThemeStore.setReducedMotion(app, true)
+        val intent = android.content.Intent(app, PlayerActivity::class.java)
+            .putExtra("title", "凡人修仙传").putExtra("startPaused", true)
+            .putStringArrayListExtra("eps", ArrayList((1..24).map { "第${it}集\u0001file:/sample$it.mp4" }))
+        val controller = org.robolectric.Robolectric.buildActivity(PlayerActivity::class.java, intent).setup()
+        val activity = controller.get()
+        val directory = File("build/reports/ui").apply { mkdirs() }
+        fun capture(view: View, width: Int, height: Int, name: String) {
+            fun invalidateLayout(v: View) {
+                v.forceLayout()
+                if (v is android.view.ViewGroup) for (i in 0 until v.childCount) invalidateLayout(v.getChildAt(i))
+            }
+            repeat(2) {
+                invalidateLayout(view)
+                view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+                view.layout(0, 0, width, height)
+            }
+            org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+            invalidateLayout(view)
+            view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            view.layout(0, 0, width, height)
+            if (name == "player-speed.png") {
+                val wheel = activity.findViewById<android.widget.HorizontalScrollView>(R.id.speedScroll)
+                val row = activity.findViewById<LinearLayout>(R.id.speedOptions)
+                val normal = row.getChildAt(2)
+                org.junit.Assert.assertEquals("wheel width=${wheel.width}, scroll=${wheel.scrollX}, padding=${row.paddingLeft}, child=${normal.left}",
+                    wheel.width / 2, normal.left + normal.width / 2 - wheel.scrollX)
+            }
+            view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            view.layout(0, 0, width, height)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            File(directory, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+        }
+        try {
+            val root = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0)
+            capture(root, 786, 1702, "player-portrait.png")
+            activity.findViewById<View>(R.id.btnEp).performClick()
+            val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+            capture(dialog.findViewById(android.R.id.content), 746, 1100, "player-episodes.png")
+            dialog.dismiss()
+            org.robolectric.shadows.ShadowDisplayManager.changeDisplay(android.view.Display.DEFAULT_DISPLAY, "w851dp-h393dp-land-xhdpi")
+            RuntimeEnvironment.setQualifiers("zh-rCN-w851dp-h393dp-land-xhdpi")
+            activity.onConfigurationChanged(activity.resources.configuration)
+            capture(root, 1702, 786, "player-fullscreen.png")
+            activity.findViewById<View>(R.id.btnSpeed).performClick()
+            capture(root, 1702, 786, "player-speed.png")
+        } finally { controller.pause().stop().destroy() }
+    }
+
     @Test fun renderHomeThemesForVisualReview() {
         val directory = File("build/reports/ui").apply { mkdirs() }
         ThemeStore.styles.forEach { style ->

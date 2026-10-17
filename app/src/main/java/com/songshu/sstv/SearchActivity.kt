@@ -13,27 +13,18 @@ import com.songshu.sstv.data.Source
 import com.songshu.sstv.data.SourceStore
 import com.songshu.sstv.data.Vod
 import com.songshu.sstv.data.VodApi
-import com.songshu.sstv.ui.VodAdapter
+import com.songshu.sstv.ui.SearchResultsAdapter
+import com.songshu.sstv.ui.SearchGroup
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * 聚合搜索：把片名丢给**所有片源**，一轮一轮往前顶，直到搜到为止。
- *
- * 三轮兜底（前一轮全空才往下走，搜到就停）：
- *   第 1 轮  并发问所有支持搜索的源，当前源排最前，谁先回来先显示
- *   第 2 轮  还是空 → 自动把《》、年份、"第X季/全XX集"这些修饰词去掉，换个关键词再搜
- *   第 3 轮  还空   → 连站方关了搜索的源也硬试一遍
- *
- * 同名结果只保留先到的那个，避免同一个片子刷屏；
- * 列表里每条都会标出它是从哪个源搜到的，点进去就用那个源播。
- */
+/** Parallel search grouped by provider, ordered by measured response latency. */
 class SearchActivity : ThemedActivity() {
 
     private lateinit var input: EditText
     private lateinit var list: RecyclerView
-    private lateinit var adapter: VodAdapter
+    private lateinit var adapter: SearchResultsAdapter
     private lateinit var progress: View
     private lateinit var hint: TextView
     private lateinit var tip: TextView
@@ -41,6 +32,7 @@ class SearchActivity : ThemedActivity() {
     private class SearchSession {
         val lock = Any()
         val seen = HashSet<String>()
+        val groups = HashMap<String, SearchGroup>()
         val results = ArrayList<Vod>()
         @Volatile var cancelled = false
         val pools = java.util.concurrent.CopyOnWriteArrayList<java.util.concurrent.ExecutorService>()
@@ -59,7 +51,7 @@ class SearchActivity : ThemedActivity() {
         hint = findViewById(R.id.hint)
         tip = findViewById(R.id.tip)
 
-        adapter = VodAdapter(dp(150)) { v ->
+        adapter = SearchResultsAdapter { v ->
             startActivity(
                 Intent(this, DetailActivity::class.java)
                     .putExtra("id", v.id)
@@ -74,8 +66,7 @@ class SearchActivity : ThemedActivity() {
         list.setItemViewCacheSize(8)
         applySpan()
 
-        val usable = SourceStore.sources(this).count { !it.name.contains("(无搜索)") }
-        tip.text = "共 ${SourceStore.sources(this).size} 个片源，其中 $usable 个支持搜索"
+        tip.visibility = View.GONE
 
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<View>(R.id.btnGo).setOnClickListener { doSearch() }
@@ -92,8 +83,12 @@ class SearchActivity : ThemedActivity() {
     private fun applySpan() {
         val width = resources.configuration.screenWidthDp
         val columns = maxOf(2, width / 112)
-        list.layoutManager = GridLayoutManager(this, columns)
-        adapter.setPicHeight(((width / columns - 12) * 1.42f * resources.displayMetrics.density).toInt())
+        list.layoutManager = GridLayoutManager(this, columns).apply {
+            spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                override fun getSpanSize(position: Int) = if (adapter.isHeader(position)) columns else 1
+            }
+        }
+        adapter.pictureHeight = (((width / columns - 12) * 1.42f * resources.displayMetrics.density).toInt())
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -158,9 +153,10 @@ class SearchActivity : ThemedActivity() {
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(input.windowToken, 0)
 
+        tip.visibility = View.VISIBLE
         progress.visibility = View.VISIBLE
         hint.visibility = View.GONE
-        adapter.clear()
+        adapter.submit(emptyList())
 
 
         val all = SourceStore.sources(this)
@@ -207,9 +203,9 @@ class SearchActivity : ThemedActivity() {
             ui {
                 if (session !== work || work.cancelled) return@ui
                 progress.visibility = View.GONE
-                tip.text = "「$wd」共试了 ${ordered.size} 个片源，找到 $n 个结果"
+                tip.text = "${synchronized(work.lock) { work.groups.size }} 个片源 · $n 个结果"
                 if (n == 0) {
-                    hint.text = "三轮都搜完了还是没找到。\n换个片名试试（只写前两三个字最容易中），\n或者去设置里「一键检测片源」看看源还活着没。"
+                    hint.text = "未找到相关影片"
                     hint.visibility = View.VISIBLE
                 }
             }
@@ -237,23 +233,28 @@ class SearchActivity : ThemedActivity() {
                 if (work.cancelled) return@forEach
                 pool.execute {
                     if (work.cancelled) return@execute
+                    val started = System.nanoTime()
                     val got = runCatching { VodApi.search(source.api, wd, source.name).list }
                         .getOrDefault(emptyList())
+                    val elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started).coerceAtLeast(1)
                     synchronized(work.lock) {
                         if (work.cancelled || !accepting.get()) return@execute
                         got.forEach lit@ { v ->
                             if (filterAdult && SourceStore.isAdultCategory(v.typeName)) return@lit
-                            val key = keyOf(v.name)
+                            val key = source.api + "|" + v.id
                             if (key.isNotEmpty() && work.seen.add(key)) work.results.add(v)
                         }
+                        val own = work.results.filter { it.sourceApi == source.api }
+                        if (own.isNotEmpty()) work.groups[source.api] = SearchGroup(source,
+                            minOf(elapsed, work.groups[source.api]?.latencyMs ?: Long.MAX_VALUE), own)
                     }
                     val count = done.incrementAndGet()
                     ui {
                         if (session !== work || work.cancelled || !accepting.get()) return@ui
                         // Snapshot on the main thread so late UI posts cannot replace newer results.
-                        val snapshot = synchronized(work.lock) { ArrayList(work.results) }
-                        adapter.submit(snapshot, false)
-                        tip.text = "$label · 已试 $count/${targets.size} 个源 · 已找到 ${snapshot.size} 个"
+                        val snapshot = synchronized(work.lock) { work.groups.values.toList() }
+                        adapter.submit(snapshot)
+                        tip.text = "$label · 已试 $count/${targets.size} 个源 · 已找到 ${snapshot.sumOf { it.items.size }} 个"
                     }
                 }
             }
@@ -270,7 +271,7 @@ class SearchActivity : ThemedActivity() {
         }
         ui {
             if (session === work && !work.cancelled) {
-                adapter.submit(synchronized(work.lock) { ArrayList(work.results) }, false)
+                adapter.submit(synchronized(work.lock) { work.groups.values.toList() })
             }
         }
         return synchronized(work.lock) { work.results.size }

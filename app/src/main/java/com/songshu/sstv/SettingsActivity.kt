@@ -32,6 +32,10 @@ class SettingsActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        findViewById<SwitchCompat>(R.id.swRestorePlayback).apply {
+            isChecked = PlaybackPreferences.restoreLast(this@SettingsActivity)
+            setOnCheckedChangeListener { _, checked -> PlaybackPreferences.setRestoreLast(this@SettingsActivity, checked) }
+        }
         renderAppearance()
         sourceBox = findViewById(R.id.sourceBox)
         sourceCount = findViewById(R.id.sourceCount)
@@ -84,7 +88,7 @@ class SettingsActivity : ThemedActivity() {
             append("${getString(R.string.app_name)} $vn\n\n")
             append("纯净播放器：没有广告 SDK、没有积分邀请、不上传任何数据。")
             append("所有内容都来自你自己配置的第三方接口，本 App 不提供、不存储、不代理任何影片。\n\n")
-            append("搜索是「多片源聚合」的：一次并发搜所有可用源，同名只留一个，")
+            append("搜索是「多片源聚合」的：一次并发搜所有可用源，按片源分组，响应快的排在前面，")
             append("每条结果后面标着它来自哪个源。\n\n")
             append("存储说明：缓存的视频放在 App 私有目录，卸载 App 会一起删除，重要内容请自行导出。")
         }

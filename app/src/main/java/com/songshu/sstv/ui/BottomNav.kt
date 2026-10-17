@@ -47,8 +47,8 @@ class BottomNav @JvmOverloads constructor(context: Context, attrs: AttributeSet?
         fun open(activity: Activity, target: Class<out Activity>) {
             val intent = Intent(activity, target).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             if (target == PlayerActivity::class.java) {
-                intent.putExtra("resumeExisting", true)
-                HistoryStore.list(activity).firstOrNull()?.let { h ->
+                intent.putExtra("resumeExisting", true).putExtra("startPaused", true)
+                HistoryStore.list(activity).firstOrNull()?.takeIf { PlaybackPreferences.restoreLast(activity) }?.let { h ->
                     val eps = ArrayList(h.eps.ifEmpty { listOf(h.ep + "\u0001" + h.url) })
                     intent.putExtra("title", h.title).putExtra("pic", h.pic)
                         .putExtra("api", h.api).putExtra("srcName", h.srcName).putExtra("vid", h.vid)
