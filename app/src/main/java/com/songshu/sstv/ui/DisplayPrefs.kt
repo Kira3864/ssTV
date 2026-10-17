@@ -10,7 +10,7 @@ class DisplayPrefs(private val c: Context, private val key: String, private val 
         get() = sp.getBoolean("${key}_grid", defaultGrid)
         set(value) { sp.edit().putBoolean("${key}_grid", value).apply() }
     var columns: Int
-        get() = sp.getInt("${key}_columns", 2).coerceIn(2, 8)
+        get() = sp.getInt("${key}_columns", 3).coerceIn(2, 8)
         set(value) { sp.edit().putInt("${key}_columns", value.coerceIn(2,8)).apply() }
     fun menu(anchor: View, changed: () -> Unit) {
         PopupMenu(c, anchor).apply {

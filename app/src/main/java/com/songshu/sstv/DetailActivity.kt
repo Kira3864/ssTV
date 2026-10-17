@@ -261,7 +261,7 @@ class DetailActivity : ThemedActivity() {
         if (v.name.isNotBlank()) name.text = v.name
         if (v.pic.isNotBlank()) Img.load(pic, v.pic)
         meta.text = v.meta
-        remark.text = v.remark
+        remark.text = v.episodeStatus
         actor.text = buildString {
             if (v.director.isNotBlank()) append("导演：${v.director}\n")
             if (v.actor.isNotBlank()) append("主演：${v.actor}")
@@ -341,7 +341,7 @@ class DetailActivity : ThemedActivity() {
         epBox.removeAllViews()
         val line = v.lines.getOrNull(lineIndex) ?: return
         val eps = line.episodes
-        epHint.text = "共 ${eps.size} 集 · 点一下就能播，长按可以单独缓存，右上角「缓存选集」可以挑着下"
+        epHint.text = if (eps.size <= 1) "正片" else if (v.isCompleted) "选集 · 共${v.knownEpisodeCount}集" else "已更新${eps.size}集"
 
         val per = 4
         val rows = (eps.size + per - 1) / per

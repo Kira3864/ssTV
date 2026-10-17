@@ -75,7 +75,7 @@ class VodAdapter(
 
         holder.name.text = item.name
         holder.remark.text = buildString {
-            append(item.remark.ifBlank { item.typeName })
+            append((if (listMode) item.episodeStatus else item.compactStatus).ifBlank { item.typeName })
             if (listMode && item.meta.isNotBlank()) append("\n${item.meta}")
             if (item.sourceName.isNotBlank()) {
                 if (isNotEmpty()) append("  ·  ")

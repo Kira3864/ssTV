@@ -67,8 +67,9 @@
         android:textSize="12sp" />
 
 <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:gravity="end|center_vertical" android:paddingHorizontal="16dp">
+<TextView android:id="@+id/btnSearchHistory" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:gravity="center_vertical" android:text="历史" android:textSize="13sp" android:textColor="?attr/appTextMuted" />
 <TextView android:id="@+id/btnSort" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingHorizontal="14dp" android:text="正序 ↑" android:textSize="13sp" android:textColor="?attr/appAccent" />
-<TextView android:id="@+id/btnViewMode" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingHorizontal="14dp" android:text="视图 ▾" android:textSize="13sp" android:textColor="?attr/appAccent" /></LinearLayout>
+<TextView android:id="@+id/btnViewMode" android:layout_width="wrap_content" android:layout_height="40dp" android:gravity="center" android:paddingHorizontal="14dp" android:text="搜索视图 ▾" android:textSize="13sp" android:textColor="?attr/appAccent" /></LinearLayout>
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

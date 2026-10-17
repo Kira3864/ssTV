@@ -23,7 +23,9 @@ data class Vod(
     val sourceName: String = "",
     val released: String = "",
     val updated: String = "",
-    val heat: Long = 0
+    val heat: Long = 0,
+    val totalEpisodes: Int = 0,
+    val completed: Boolean = false
 ) {
     val meta: String
         get() = listOf(year, area, typeName).filter { it.isNotBlank() }.joinToString(" · ")
@@ -33,6 +35,19 @@ data class Vod(
 
     val episodeCount: Int
         get() = lines.firstOrNull()?.episodes?.size ?: 0
+    val isCompleted: Boolean get() = completed || Regex("完结|全集|全\\s*[0-9零〇一二两三四五六七八九十百千]+\\s*集|[0-9]+\\s*集全", RegexOption.IGNORE_CASE).containsMatchIn(remark)
+    val knownEpisodeCount: Int get() {
+        val stated = Regex("(?:全|共)\\s*([0-9零〇一二两三四五六七八九十百千]+)\\s*集|([0-9]+)\\s*集全").find(remark)?.let {
+            VideoOrder.integer(it.groupValues[1].ifBlank { it.groupValues[2] }).toInt()
+        } ?: 0
+        return maxOf(totalEpisodes, stated, lines.maxOfOrNull { it.episodes.size } ?: 0)
+    }
+    val episodeStatus: String get() {
+        val count = knownEpisodeCount
+        val series = count > 1 || Regex("剧|动漫|动画|综艺|少儿").containsMatchIn(typeName)
+        return if (isCompleted && series) if (count > 0) "已完结 · 共${count}集" else "已完结" else remark
+    }
+    val compactStatus: String get() = if (isCompleted && knownEpisodeCount > 1) "共${knownEpisodeCount}集 · 完结" else episodeStatus
 }
 
 /**

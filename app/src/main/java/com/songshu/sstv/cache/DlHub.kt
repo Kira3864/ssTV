@@ -6,13 +6,17 @@ import java.util.concurrent.atomic.AtomicLong
 
 /** 取消令牌。Downloader 每读一块、每下一个分段都看一眼它。 */
 class CancelFlag {
+    private val active = java.util.concurrent.ConcurrentHashMap.newKeySet<java.net.HttpURLConnection>()
     @Volatile
     var cancelled = false
         private set
 
     fun cancel() {
         cancelled = true
+        active.forEach { runCatching { it.disconnect() } }
     }
+    internal fun watch(connection: java.net.HttpURLConnection) { active.add(connection); if (cancelled) runCatching { connection.disconnect() } }
+    internal fun unwatch(connection: java.net.HttpURLConnection) { active.remove(connection) }
 }
 
 enum class DlState { RUN, OK, FAIL, CANCELED }

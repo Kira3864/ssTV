@@ -28,6 +28,7 @@ class SearchActivity : ThemedActivity() {
     private lateinit var progress: View
     private lateinit var hint: TextView
     private lateinit var tip: TextView
+    private var historyDialog: android.app.Dialog? = null
 
     private class SearchSession {
         val lock = Any()
@@ -38,13 +39,16 @@ class SearchActivity : ThemedActivity() {
         val pools = java.util.concurrent.CopyOnWriteArrayList<java.util.concurrent.ExecutorService>()
         fun cancel() { cancelled = true; pools.forEach { it.shutdownNow() } }
     }
-    private val display by lazy { com.songshu.sstv.ui.DisplayPrefs(this, "search", false) }
+    private val display by lazy { com.songshu.sstv.ui.DisplayPrefs(this, "search") }
     private var ranked = true
     private var groups: List<SearchGroup> = emptyList()
     private var rankIdentity = ""
     private fun displayGroups(value: List<SearchGroup>) { groups = value; adapter.submit(value) }
     private var session: SearchSession? = null
     private var searchJob: java.util.concurrent.Future<*>? = null
+    private var rankingSubscription: (() -> Unit)? = null
+    private var rankingLoading = false
+    private fun stopRanking() { rankingSubscription?.invoke(); rankingSubscription=null; rankingLoading=false }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,7 +88,10 @@ class SearchActivity : ThemedActivity() {
         }
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         input.clearFocus()
-        findViewById<View>(R.id.btnViewMode).setOnClickListener { display.menu(it) { adapter.listMode = !display.grid; applySpan() } }
+        findViewById<View>(R.id.btnViewMode).setOnClickListener { display.menu(it) { adapter.listMode = ranked || !display.grid; applySpan() } }
+        findViewById<View>(R.id.btnSearchHistory).setOnClickListener {
+            historyDialog = com.songshu.sstv.ui.SearchHistoryDialog.show(this) { term -> input.setText(term); doSearch() }
+        }
         findViewById<TextView>(R.id.btnSort).setOnClickListener {
             adapter.descending = !adapter.descending
             (it as TextView).text = if (adapter.descending) "倒序 ↓" else "正序 ↑"
@@ -105,6 +112,7 @@ class SearchActivity : ThemedActivity() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        historyDialog?.dismiss()
         applySpan()
     }
 
@@ -157,6 +165,8 @@ class SearchActivity : ThemedActivity() {
             showRanking()
             return
         }
+        com.songshu.sstv.data.SearchHistoryStore.add(this, wd)
+        stopRanking()
         session?.cancel()
         searchJob?.cancel(true)
         val work = SearchSession()
@@ -313,10 +323,11 @@ class SearchActivity : ThemedActivity() {
         super.onResume()
         val identity = "${SourceStore.current(this).api}|${SourceStore.nsfw(this)}"
         if (rankIdentity != identity) { if (ranked) showRanking() else doSearch() }
+        else if (ranked && !rankingLoading && com.songshu.sstv.data.RankingCache.read(this,SourceStore.current(this),SourceStore.filterAdult(this))?.fresh != true) showRanking()
     }
 
     private fun showRanking() {
-        session?.cancel(); searchJob?.cancel(true)
+        stopRanking(); session?.cancel(); searchJob?.cancel(true)
         val work = SearchSession(); session = work
         ranked = true; adapter.ranked = true; adapter.listMode = true; applySpan()
         val source = SourceStore.current(this)
@@ -324,40 +335,32 @@ class SearchActivity : ThemedActivity() {
         val filtered = SourceStore.filterAdult(this)
         findViewById<View>(R.id.btnSort).visibility = View.GONE
         tip.visibility = View.GONE; hint.visibility = View.GONE; progress.visibility = View.VISIBLE
-        displayGroups(emptyList())
-        searchJob = Bg.io.submit {
-            val result = runCatching {
-                val movies = linkedMapOf<String, Vod>()
-                val seen = hashSetOf<String>()
-                var page = 1
-                do {
-                    if (work.cancelled || Thread.currentThread().isInterrupted) throw InterruptedException()
-                    val response = VodApi.listByType(source.api, "", page, source.name)
-                    var added = 0
-                    response.list.forEach { movie ->
-                        if (seen.add(movie.id)) {
-                            added++
-                            if (!filtered || !SourceStore.isAdultCategory(movie.typeName)) movies[movie.id] = movie
-                        }
-                    }
-                    page++
-                    if (added == 0 || page > response.pageCount) break
-                } while (movies.size < 10)
-                movies.values.sortedWith(compareByDescending<Vod> { it.heat }.thenByDescending { it.updated }).take(10)
-            }
-            ui {
-                if (session !== work || work.cancelled) return@ui
+        input.clearFocus()
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(input.windowToken, 0)
+        val cached = com.songshu.sstv.data.RankingCache.read(this, source, filtered)
+        displayGroups(cached?.items?.let { listOf(SearchGroup(source, 0, it, "最新热播 Top 10 · ${source.name}")) }.orEmpty())
+        progress.visibility = if (cached == null) View.VISIBLE else View.GONE
+        if (cached?.fresh == true) return
+        rankingLoading = true
+        rankingSubscription = com.songshu.sstv.data.RankingLoader.load(this,source,filtered,
+            changed = { partial -> ui { if (session === work && !work.cancelled) {
+                displayGroups(listOf(SearchGroup(source,0,partial,"最新热播 Top 10 · ${source.name}")))
                 progress.visibility = View.GONE
-                val movies = result.getOrDefault(emptyList())
-                displayGroups(listOf(SearchGroup(source, 0, movies, "最新热播 Top 10 · ${source.name}")))
+            } } },
+            finished = { result -> ui {
+                if (session !== work || work.cancelled) return@ui
+                rankingLoading = false; progress.visibility = View.GONE
+                val movies = if (result.isSuccess) result.getOrDefault(emptyList()) else groups.flatMap { it.items }
+                displayGroups(listOf(SearchGroup(source,0,movies,"最新热播 Top 10 · ${source.name}")))
                 hint.text = if (result.isFailure) "加载失败，点击重试" else "暂无影片"
                 hint.visibility = if (movies.isEmpty()) View.VISIBLE else View.GONE
                 hint.setOnClickListener { if (ranked) showRanking() else doSearch() }
-            }
-        }
+            } })
     }
 
     override fun onDestroy() {
+        historyDialog?.dismiss()
+        stopRanking()
         session?.cancel()
         searchJob?.cancel(true)
         super.onDestroy()

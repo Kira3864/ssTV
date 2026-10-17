@@ -63,7 +63,7 @@ class LibraryActivity : ThemedActivity() {
             entries = if (groupId == null) groups.map { g ->
                 val movies = favorites.filter { it.group == g.id }
                 Entry(g.name, listOf(g.note, "${movies.size} 部").filter { it.isNotBlank() }.joinToString(" · "), movies.take(4).map { it.media.pic }, true, group = g)
-            } else favorites.filter { it.group == groupId }.map { Entry(it.media.title, it.media.source, listOf(it.media.pic), media = it.media) }
+            } else favorites.filter { it.group == groupId }.map { Entry(it.media.title, listOf(it.media.status,it.media.source).filter { v -> v.isNotBlank() }.joinToString(" · "), listOf(it.media.pic), media = it.media) }
         } else {
             val marks = LibraryStore.likes(this)
             entries = when {

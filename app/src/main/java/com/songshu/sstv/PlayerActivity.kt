@@ -350,7 +350,7 @@ class PlayerActivity : ThemedActivity() {
         updateControls()
         findViewById<TextView>(R.id.watchTitle).text = vodName.ifBlank { "尚未播放" }
         findViewById<TextView>(R.id.watchMeta).apply {
-            text = watchVod?.meta.orEmpty()
+            text = listOf(watchVod?.meta.orEmpty(), watchVod?.takeIf { it.isCompleted }?.episodeStatus.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ")
             visibility = if (text.isBlank()) View.GONE else View.VISIBLE
         }
         findViewById<TextView>(R.id.watchPlot).apply {
@@ -457,7 +457,7 @@ class PlayerActivity : ThemedActivity() {
     }
 
 
-    private fun mediaRef() = MediaRef(vid, vodName, pic, api, srcName, ArrayList(eps), index, lineName)
+    private fun mediaRef() = MediaRef(vid, vodName, pic, api, srcName, ArrayList(eps), index, lineName, watchVod?.episodeStatus.orEmpty())
     private fun updateFavorite() {
         val selected = eps.isNotEmpty() && LibraryStore.favorites(this).any { it.media.key == mediaRef().key }
         findViewById<ImageButton>(R.id.btnFavorite).apply { alpha = if (selected) 1f else .7f; contentDescription = if (selected) "已收藏" else "收藏"; setColorFilter(if (selected) 0xFFFFCC66.toInt() else Color.WHITE) }

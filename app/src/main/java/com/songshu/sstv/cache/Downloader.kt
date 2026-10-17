@@ -143,7 +143,9 @@ object Downloader {
         val total = segs.size
         val done = AtomicInteger(0)
         val bytes = AtomicLong(0)
-        val pool = Executors.newFixedThreadPool(4)
+        val progressLock = Any()
+        val connections = java.util.concurrent.ConcurrentHashMap.newKeySet<HttpURLConnection>()
+        val pool = Executors.newFixedThreadPool(minOf(8, total))
         val jobs = ArrayList<java.util.concurrent.Future<Boolean>>(total)
         for (i in 0 until total) {
             val idx = i
@@ -151,10 +153,12 @@ object Downloader {
             jobs.add(pool.submit<Boolean> {
                 if (flag?.cancelled == true) return@submit false
                 val f = File(segDir, "%06d.ts".format(idx))
-                val ok = fetchTo(segUrl, f, flag)
-                val d = done.incrementAndGet()
-                val got = bytes.addAndGet(f.length())
-                report((d * 100 / total).coerceIn(0, 99), got, 0)
+                val ok = fetchTo(segUrl, f, flag, connections)
+                synchronized(progressLock) {
+                    val d = done.incrementAndGet()
+                    val got = bytes.addAndGet(f.length())
+                    report((d * 100 / total).coerceIn(0, 99), got, 0)
+                }
                 ok
             })
         }
@@ -162,21 +166,19 @@ object Downloader {
 
         var allOk = true
         for (j in jobs) {
-            if (!runCatching { j.get(180, TimeUnit.SECONDS) }.getOrDefault(false)) allOk = false
+            if (!runCatching { j.get(180, TimeUnit.SECONDS) }.getOrDefault(false)) { allOk = false; break }
             if (flag?.cancelled == true) break
         }
-        if (flag?.cancelled == true) {
+        if (!allOk || flag?.cancelled == true || Thread.currentThread().isInterrupted) {
             pool.shutdownNow()
-            segDir.deleteRecursively()
-            return false
-        }
-        if (!allOk) {
-            segDir.deleteRecursively()
+            connections.forEach { runCatching { it.disconnect() } }
+            val stopped = runCatching { pool.awaitTermination(30, TimeUnit.SECONDS) }.getOrDefault(false)
+            if (stopped) segDir.deleteRecursively()
             return false
         }
 
         var written = 0L
-        FileOutputStream(out).use { fos ->
+        FileOutputStream(out).buffered(256*1024).use { fos ->
             for (i in 0 until total) {
                 if (flag?.cancelled == true) {
                     segDir.deleteRecursively()
@@ -187,7 +189,7 @@ object Downloader {
                     segDir.deleteRecursively()
                     return false
                 }
-                f.inputStream().use { it.copyTo(fos, 64 * 1024) }
+                f.inputStream().use { it.copyTo(fos, 128 * 1024) }
                 written += f.length()
             }
         }
@@ -198,71 +200,74 @@ object Downloader {
 
     // ---------------- 直链 ----------------
 
-    private fun plain(
-        url: String,
-        out: File,
-        flag: CancelFlag?,
-        report: (Int, Long, Long) -> Unit
-    ): Boolean {
+    private fun plain(url: String, out: File, flag: CancelFlag?, report: (Int, Long, Long) -> Unit): Boolean {
         val conn = open(url)
+        flag?.watch(conn)
         try {
-            val code = conn.responseCode
-            if (code >= 400) return false
-            val totalLen = conn.contentLengthLong
-            conn.inputStream.use { ins ->
-                FileOutputStream(out).use { fos ->
-                    val buf = ByteArray(64 * 1024)
-                    var got = 0L
-                    var lastP = -1
-                    var lastT = 0L
-                    while (true) {
-                        if (flag?.cancelled == true) return false
-                        val n = ins.read(buf)
-                        if (n <= 0) break
-                        fos.write(buf, 0, n)
-                        got += n
-                        val p = if (totalLen > 0) (got * 100 / totalLen).toInt().coerceIn(0, 99) else 0
-                        val now = System.currentTimeMillis()
-                        // 百分比变了要报，长时间没变也要报（速度条得动起来）
-                        if (p != lastP || now - lastT >= 400) {
-                            lastP = p
-                            lastT = now
-                            report(p, got, if (totalLen > 0) totalLen else 0)
-                        }
-                    }
-                }
+            if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
+            if (conn.responseCode != 200) return false
+            val size = conn.contentLengthLong
+            val validator = conn.getHeaderField("ETag")?.takeUnless { it.startsWith("W/") }
+                ?: conn.getHeaderField("Last-Modified")
+            val ranges = conn.getHeaderField("Accept-Ranges").orEmpty().equals("bytes",true)
+            val encoding = conn.getHeaderField("Content-Encoding").orEmpty()
+            if (size >= 4*1024*1024 && ranges && !validator.isNullOrBlank() && (encoding.isBlank() || encoding == "identity")) {
+                conn.disconnect()
+                if (RangeTransfer.download(out,size,validator,flag,{ open(url) },report)) return true
+                if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
+                val fallback = open(url); flag?.watch(fallback)
+                try { return copyResponse(fallback,out,flag,report) } finally { flag?.unwatch(fallback); fallback.disconnect() }
             }
-            if (totalLen > 0 && out.length() != totalLen) return false
-            report(100, out.length(), if (totalLen > 0) totalLen else out.length())
-        } finally {
-            conn.disconnect()
-        }
-        return true
+            return copyResponse(conn,out,flag,report)
+        } finally { flag?.unwatch(conn); conn.disconnect() }
+    }
+
+    private fun copyResponse(conn: HttpURLConnection, out: File, flag: CancelFlag?, report: (Int, Long, Long) -> Unit): Boolean {
+        if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
+        if (conn.responseCode != 200) return false
+        val total = conn.contentLengthLong
+        var got = 0L; var lastPercent = -1; var lastReport = 0L
+        conn.inputStream.use { input -> out.outputStream().buffered(256*1024).use { output ->
+            val buffer = ByteArray(128*1024)
+            while (true) {
+                if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
+                val count = input.read(buffer)
+                if (count < 0) break
+                output.write(buffer,0,count); got += count
+                val percent = if (total > 0) (got*100/total).toInt().coerceIn(0,99) else 0
+                val now = System.currentTimeMillis()
+                if (percent != lastPercent || now-lastReport >= 400) { report(percent,got,total.coerceAtLeast(0)); lastPercent=percent; lastReport=now }
+            }
+        } }
+        if (total > 0 && out.length() != total) return false
+        report(100,out.length(),out.length()); return true
     }
 
     // ---------------- 工具 ----------------
 
-    private fun fetchTo(url: String, f: File, flag: CancelFlag?): Boolean {
+    private fun fetchTo(url: String, f: File, flag: CancelFlag?, active: MutableSet<HttpURLConnection>): Boolean {
         repeat(3) {
-            if (flag?.cancelled == true) return false
+            if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
             try {
-                val conn = open(url)
+                val conn = open(url); flag?.watch(conn); active.add(conn)
                 try {
+                    if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
                     if (conn.responseCode >= 400) return@repeat
+                    val expected = conn.contentLengthLong
                     conn.inputStream.use { ins ->
                         FileOutputStream(f).use { fos ->
-                            val buf = ByteArray(64 * 1024)
+                            val buf = ByteArray(128 * 1024)
                             while (true) {
-                                if (flag?.cancelled == true) return false
+                                if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
                                 val n = ins.read(buf)
                                 if (n <= 0) break
                                 fos.write(buf, 0, n)
                             }
                         }
                     }
-                    if (f.length() > 0) return true
+                    if (f.length() > 0 && (expected < 0 || f.length() == expected)) return true
                 } finally {
-                    conn.disconnect()
+                    active.remove(conn); flag?.unwatch(conn); conn.disconnect()
                 }
             } catch (e: Exception) {
                 // 重试
@@ -280,6 +285,7 @@ object Downloader {
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("User-Agent", VodApi.UA)
         conn.setRequestProperty("Accept", "*/*")
+        conn.setRequestProperty("Accept-Encoding", "identity")
         runCatching { "${URL(safe).protocol}://${URL(safe).host}/" }
             .getOrNull()?.let { conn.setRequestProperty("Referer", it) }
         return conn
@@ -300,7 +306,7 @@ object Downloader {
         private var b0 = 0L
         private var v = 0L
 
-        fun tick(bytes: Long): Long {
+        @Synchronized fun tick(bytes: Long): Long {
             val now = System.currentTimeMillis()
             val dt = now - t0
             if (dt >= 600) {

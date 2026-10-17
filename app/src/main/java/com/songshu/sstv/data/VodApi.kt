@@ -166,7 +166,9 @@ object VodApi {
         sourceName = srcName,
         released = o.optString("vod_pubdate").ifBlank { o.optString("vod_year") },
         updated = o.optString("vod_time"),
-        heat = o.optLong("vod_hits_week").takeIf { it > 0 } ?: o.optLong("vod_hits_day").takeIf { it > 0 } ?: o.optLong("vod_hits")
+        heat = o.optLong("vod_hits_week").takeIf { it > 0 } ?: o.optLong("vod_hits_day").takeIf { it > 0 } ?: o.optLong("vod_hits"),
+        totalEpisodes = o.optInt("vod_total").takeIf { it > 0 } ?: if (o.optInt("vod_isend") == 1 || Regex("完结|全集").containsMatchIn(o.optString("vod_remarks"))) o.optInt("vod_serial") else 0,
+        completed = o.optInt("vod_isend") == 1
     )
 
     /** 封面图常是相对路径，补成绝对地址 */

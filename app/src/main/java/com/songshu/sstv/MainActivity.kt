@@ -128,6 +128,7 @@ class MainActivity : ThemedActivity() {
         val identity = "${s.api}|${s.name}|${SourceStore.filterAdult(this)}"
         if (loadedFor != identity) {
             loadedFor = identity
+            com.songshu.sstv.data.RankingLoader.load(this,s,SourceStore.filterAdult(this))
             loadClasses()
         }
     }
@@ -400,6 +401,7 @@ class MainActivity : ThemedActivity() {
                 val items = if (SourceStore.filterAdult(this)) {
                     pg.list.filter { !SourceStore.isAdultCategory(it.typeName) }
                 } else pg.list
+                if (p == 1 && type.isBlank() && year.isBlank()) com.songshu.sstv.data.RankingCache.put(this,s,SourceStore.filterAdult(this),items,items.size >= 10)
                 adapter.submit(items, append)
                 if (adapter.dataCount == 0) {
                     hint.text = when {

@@ -98,7 +98,7 @@ class DiscoveryRegressionTest {
             activity.findViewById<View>(R.id.btnSort).performClick(); await { name(1).endsWith("第十季") }
             activity.findViewById<View>(R.id.btnViewMode).performClick()
             ShadowPopupMenu.getLatestPopupMenu().menu.performIdentifierAction(2,0)
-            assertFalse(adapter.listMode); assertEquals(2,(list.layoutManager as GridLayoutManager).spanCount)
+            assertFalse(adapter.listMode); assertEquals(3,(list.layoutManager as GridLayoutManager).spanCount)
             activity.findViewById<View>(R.id.btnViewMode).performClick(); ShadowPopupMenu.getLatestPopupMenu().menu.performIdentifierAction(1,0)
             assertTrue(adapter.listMode); assertEquals(1,(list.layoutManager as GridLayoutManager).spanCount)
         } finally { controller.pause().stop().destroy(); server.shutdown() }

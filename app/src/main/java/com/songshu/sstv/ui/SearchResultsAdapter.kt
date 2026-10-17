@@ -74,7 +74,7 @@ class SearchResultsAdapter(private val open: (Vod) -> Unit) : RecyclerView.Adapt
             Img.round(holder.image, ThemeStore.current(holder.image.context).radius * holder.image.resources.displayMetrics.density)
             Img.load(holder.image, vod.pic)
             holder.name.text = if (ranked) "${position}. ${vod.name}" else vod.name
-            holder.remark.text = listOf(vod.remark, vod.meta, if (listMode) vod.sourceName else "").filter { it.isNotBlank() }.distinct().joinToString(if (listMode) "\n" else " · ")
+            holder.remark.text = listOf(if (listMode) vod.episodeStatus else vod.compactStatus, vod.meta).filter { it.isNotBlank() }.distinct().joinToString(if (listMode) "\n" else " · ")
             holder.itemView.setOnClickListener { open(vod) }
             Motion.interactive(holder.itemView)
         }
