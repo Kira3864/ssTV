@@ -24,6 +24,21 @@ import java.io.File
 @Config(sdk = [28], application = Application::class, qualifiers = "zh-rCN-w393dp-h851dp-port-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScreenPreviewTest {
+    @Test fun renderAdaptiveLauncherIcon() {
+        val app = RuntimeEnvironment.getApplication()
+        val icon = requireNotNull(app.getDrawable(R.mipmap.ic_launcher))
+        org.junit.Assert.assertTrue(icon is android.graphics.drawable.AdaptiveIconDrawable)
+        org.junit.Assert.assertTrue(app.getDrawable(R.mipmap.ic_launcher_round) is android.graphics.drawable.AdaptiveIconDrawable)
+        val directory = File("build/reports/ui").apply { mkdirs() }
+        for (size in listOf(48, 192, 512)) {
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            icon.setBounds(0, 0, size, size)
+            icon.draw(Canvas(bitmap))
+            File(directory, "launcher-$size.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+        }
+    }
+
     @Test fun renderPlayerPortraitFullscreenAndEpisodeSheet() {
         val app = RuntimeEnvironment.getApplication()
         ThemeStore.select(app, ThemeStore.styles[2])
@@ -75,6 +90,8 @@ class ScreenPreviewTest {
             capture(root, 1702, 786, "player-fullscreen.png")
             activity.findViewById<View>(R.id.btnSpeed).performClick()
             capture(root, 1702, 786, "player-speed.png")
+            activity.findViewById<View>(R.id.btnLock).performClick()
+            capture(root, 1702, 786, "player-locked.png")
         } finally { controller.pause().stop().destroy() }
     }
 

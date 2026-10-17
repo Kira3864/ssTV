@@ -21,8 +21,8 @@ object ThemeStore {
     )
 
     fun current(c: Context): Style {
-        val id = c.getSharedPreferences("appearance", Context.MODE_PRIVATE).getString("theme", "cinema")
-        return styles.firstOrNull { it.id == id } ?: styles.first()
+        val id = c.getSharedPreferences("appearance", Context.MODE_PRIVATE).getString("theme", "paper")
+        return styles.firstOrNull { it.id == id } ?: styles.first { it.id == "paper" }
     }
 
     fun select(c: Context, style: Style) {

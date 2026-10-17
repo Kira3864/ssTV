@@ -21,6 +21,18 @@ class AppearanceRegressionTest {
     @Before fun reset() {
         app.getSharedPreferences("appearance", 0).edit().clear().commit()
         app.getSharedPreferences("sstv", 0).edit().clear().commit()
+        app.getSharedPreferences("sstv_player", 0).edit().clear().commit()
+    }
+
+    @Test fun freshDefaultsUsePaperAndRestorePlaybackWithoutOverridingSavedChoices() {
+        assertEquals("paper", ThemeStore.current(app).id)
+        assertTrue(PlaybackPreferences.restoreLast(app))
+        ThemeStore.select(app, ThemeStore.styles.first { it.id == "cinema" })
+        PlaybackPreferences.setRestoreLast(app, false)
+        assertEquals("cinema", ThemeStore.current(app).id)
+        assertFalse(PlaybackPreferences.restoreLast(app))
+        app.getSharedPreferences("appearance", 0).edit().putString("theme", "removed-theme").commit()
+        assertEquals("paper", ThemeStore.current(app).id)
     }
 
     @Test fun allThemesInflateAllBrowsingLayouts() {

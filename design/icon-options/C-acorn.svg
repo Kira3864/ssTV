@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="橡果放映">
+  <rect width="512" height="512" rx="112" fill="#203F35"/>
+  <path d="M256 156C253 121 275 103 301 106" fill="none" stroke="#F5E6C9" stroke-width="21" stroke-linecap="round"/>
+  <path d="M143 240H369V273C369 338 322 385 256 407C190 385 143 338 143 273Z" fill="#E7AC68"/>
+  <path d="M129 224C129 176 176 149 256 149C336 149 383 176 383 224V232Q383 246 369 246H143Q129 246 129 232Z" fill="#F5E6C9"/>
+  <path d="M178 198L194 214M221 185L238 202M269 185L286 202M313 198L329 214" fill="none" stroke="#D3C0A0" stroke-width="10" stroke-linecap="round"/>
+  <path d="M234 275Q234 266 242 271L295 305Q303 310 295 315L242 349Q234 354 234 345Z" fill="#203F35"/>
+</svg>

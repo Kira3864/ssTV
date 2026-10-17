@@ -36,14 +36,19 @@ class PlaybackInteractionTest {
         .putStringArrayListExtra("eps", arrayListOf("第一集\u0001file:/first.mp4", "第二集\u0001file:/second.mp4"))
     private fun player(activity: PlayerActivity) = PlayerActivity::class.java.getDeclaredField("player").apply { isAccessible = true }.get(activity) as ExoPlayer
     private fun layout(activity: PlayerActivity, width: Int = 786, height: Int = 1702) {
-        activity.window.decorView.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
-        activity.window.decorView.layout(0, 0, width, height)
-        val root = activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
-        root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
-        root.layout(0, 0, width, height)
+        shadowOf(Looper.getMainLooper()).idle()
+        fun force(view: View) {
+            view.forceLayout()
+            if (view is ViewGroup) for (i in 0 until view.childCount) force(view.getChildAt(i))
+        }
+        val decor = activity.window.decorView
+        force(decor)
+        decor.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+        decor.layout(0, 0, width, height)
     }
 
     @Test fun emptyTabDoesNotRestoreHistoryUnlessEnabledAndRestoresPaused() {
+        PlaybackPreferences.setRestoreLast(app, false)
         HistoryStore.put(app, HisItem("file:/last.mp4", "上次影片", "第一集", "", "file:/last.mp4", 42_000, 100_000, 1,
             listOf("第一集\u0001file:/last.mp4")))
         val my = Robolectric.buildActivity(MyActivity::class.java).setup()
@@ -114,32 +119,105 @@ class PlaybackInteractionTest {
         } finally { controller.pause().stop().destroy() }
     }
 
-    @Test fun fullscreenLockBlocksVideoTouchesUntilUnlocked() {
+    private fun tap(activity: PlayerActivity, target: View) {
+        val bounds = android.graphics.Rect()
+        assertTrue("Target must be visible: ${target.contentDescription}", target.getGlobalVisibleRect(bounds))
+        val now = android.os.SystemClock.uptimeMillis()
+        val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, bounds.exactCenterX(), bounds.exactCenterY(), 0)
+        val up = MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, bounds.exactCenterX(), bounds.exactCenterY(), 0)
+        activity.dispatchTouchEvent(down); activity.dispatchTouchEvent(up)
+        down.recycle(); up.recycle()
+        shadowOf(Looper.getMainLooper()).idle()
+        val landscape = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        layout(activity, if (landscape) 1702 else 786, if (landscape) 786 else 1702)
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w851dp-h393dp-land-xhdpi")
+    fun fullscreenLockRespondsToTouchesAndKeepsPauseExitAndUnlockAvailable() {
         val controller = Robolectric.buildActivity(PlayerActivity::class.java, media()).setup()
         try {
             val activity = controller.get()
-            RuntimeEnvironment.setQualifiers("zh-rCN-w851dp-h393dp-land-xhdpi")
             activity.onConfigurationChanged(activity.resources.configuration); layout(activity, 1702, 786)
             val lock = activity.findViewById<View>(R.id.btnLock)
             assertEquals(View.VISIBLE, lock.visibility)
-            lock.performClick()
+            assertEquals("锁定屏幕", lock.contentDescription)
+            tap(activity, lock)
             assertEquals("解锁屏幕", lock.contentDescription)
-            assertEquals(View.GONE, activity.findViewById<View>(R.id.videoControls).visibility)
-            val before = activity.window.attributes.screenBrightness
-            val event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 200f, 200f, 0)
-            assertTrue(activity.dispatchTouchEvent(event)); event.recycle()
-            assertEquals(before, activity.window.attributes.screenBrightness)
-            lock.performClick()
             assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.videoControls).visibility)
+            assertEquals(View.GONE, activity.findViewById<View>(R.id.topBar).visibility)
+            listOf(R.id.btnNext, R.id.btnEp, R.id.btnSpeed).forEach {
+                assertEquals(View.GONE, activity.findViewById<View>(it).visibility)
+            }
+            assertFalse(activity.findViewById<View>(R.id.playerSeek).isEnabled)
+            layout(activity, 1702, 786)
+            val pause = activity.findViewById<View>(R.id.btnPlayPause)
+            tap(activity, pause)
+            assertTrue(player(activity).playWhenReady)
+            tap(activity, pause)
+            assertFalse(player(activity).playWhenReady)
+            tap(activity, lock)
+            assertEquals("锁定屏幕", lock.contentDescription)
+            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.topBar).visibility)
+            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.btnEp).visibility)
+            tap(activity, lock)
+            layout(activity, 1702, 786)
+            tap(activity, activity.findViewById(R.id.btnFull))
+            assertEquals(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, activity.requestedOrientation)
+            assertEquals("锁定屏幕", lock.contentDescription)
+            // The system back action also leaves fullscreen while locked.
+            tap(activity, lock)
+            activity.onBackPressed()
+            assertEquals(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT, activity.requestedOrientation)
+            assertEquals("锁定屏幕", lock.contentDescription)
         } finally { controller.pause().stop().destroy() }
     }
 
-    @Test fun fullscreenSideSwipesAdjustVolumeAndBrightness() {
+    @Test
+    @Config(qualifiers = "zh-rCN-w851dp-h393dp-land-xhdpi")
+    fun fullscreenLockBlocksSwipesSeekingAndVideoDoubleTaps() {
         val controller = Robolectric.buildActivity(PlayerActivity::class.java, media()).setup()
         try {
             val activity = controller.get()
-            org.robolectric.shadows.ShadowDisplayManager.changeDisplay(android.view.Display.DEFAULT_DISPLAY, "w851dp-h393dp-land-xhdpi")
-            RuntimeEnvironment.setQualifiers("zh-rCN-w851dp-h393dp-land-xhdpi")
+            activity.onConfigurationChanged(activity.resources.configuration); layout(activity, 1702, 786)
+            val audio = activity.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+            audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, 3, 0)
+            activity.window.attributes = activity.window.attributes.apply { screenBrightness = .6f }
+            tap(activity, activity.findViewById(R.id.btnLock))
+            layout(activity, 1702, 786)
+            val bounds = android.graphics.Rect()
+            assertTrue(activity.findViewById<View>(R.id.videoStage).getGlobalVisibleRect(bounds))
+            val position = player(activity).currentPosition
+            fun gesture(x1: Float, y1: Float, x2: Float, y2: Float) {
+                val now = android.os.SystemClock.uptimeMillis()
+                listOf(
+                    MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x1, y1, 0),
+                    MotionEvent.obtain(now, now + 80, MotionEvent.ACTION_MOVE, x2, y2, 0),
+                    MotionEvent.obtain(now, now + 120, MotionEvent.ACTION_UP, x2, y2, 0)
+                ).forEach { activity.dispatchTouchEvent(it); it.recycle() }
+            }
+            for (fraction in listOf(.25f, .75f)) {
+                val x = bounds.left + bounds.width() * fraction
+                gesture(x, bounds.top + bounds.height() * .65f, x, bounds.top + bounds.height() * .2f)
+            }
+            gesture(bounds.left + bounds.width() * .3f, bounds.exactCenterY(), bounds.left + bounds.width() * .7f, bounds.exactCenterY())
+            repeat(2) { gesture(bounds.exactCenterX(), bounds.exactCenterY(), bounds.exactCenterX(), bounds.exactCenterY()) }
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(500))
+            assertFalse(player(activity).playWhenReady)
+            assertEquals(position, player(activity).currentPosition)
+            assertEquals(3, audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC))
+            assertEquals(.6f, activity.window.attributes.screenBrightness, .001f)
+            assertEquals(View.GONE, activity.findViewById<View>(R.id.hudBox).visibility)
+            assertEquals("解锁屏幕", activity.findViewById<View>(R.id.btnLock).contentDescription)
+        } finally { controller.pause().stop().destroy() }
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w851dp-h393dp-land-xhdpi")
+    fun fullscreenSideSwipesAdjustVolumeAndBrightness() {
+        val controller = Robolectric.buildActivity(PlayerActivity::class.java, media()).setup()
+        try {
+            val activity = controller.get()
             activity.onConfigurationChanged(activity.resources.configuration); layout(activity, 1702, 786)
             val audio = activity.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
             audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, 3, 0)

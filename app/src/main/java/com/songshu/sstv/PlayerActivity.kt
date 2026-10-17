@@ -208,7 +208,7 @@ class PlayerActivity : ThemedActivity() {
     }
 
     private fun togglePlayPause() {
-        if (eps.isEmpty() || locked) return
+        if (eps.isEmpty()) return
         if (!resolved) { wantsPlayback = !wantsPlayback; updateControls(); return }
         val next = !(if (remote != null) remotePlaying else player.playWhenReady)
         wantsPlayback = next
@@ -247,11 +247,12 @@ class PlayerActivity : ThemedActivity() {
             contentDescription = if (playing) "暂停" else "播放"
             isEnabled = eps.isNotEmpty()
         }
-        findViewById<View>(R.id.btnNext).visibility = if (index + 1 < eps.size) View.VISIBLE else View.GONE
-        btnEp.visibility = if (eps.size > 1) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.btnNext).visibility = if (!locked && index + 1 < eps.size) View.VISIBLE else View.GONE
+        btnEp.visibility = if (!locked && eps.size > 1) View.VISIBLE else View.GONE
+        btnSpeed.visibility = if (locked) View.GONE else View.VISIBLE
         findViewById<TextView>(R.id.title).text = listOf(vodName, eps.getOrNull(index)?.substringBefore('\u0001')).filterNot { it.isNullOrBlank() }.joinToString(" · ")
         btnSpeed.text = speedLabel(speed)
-        seek.isEnabled = resolved && duration() > 0
+        seek.isEnabled = !locked && resolved && duration() > 0
         if (!scrubbing) {
             seek.progress = if (duration() > 0) (position() * 1000 / duration()).toInt().coerceIn(0, 1000) else 0
             findViewById<TextView>(R.id.playerTime).text = "${fmtDur(position())} / ${fmtDur(duration())}"
@@ -263,20 +264,26 @@ class PlayerActivity : ThemedActivity() {
 
     private val hideControls = Runnable { if (!locked && player.isPlaying && !scrubbing && findViewById<View>(R.id.speedPanel).visibility != View.VISIBLE) showControls(false) }
     private fun showControls(show: Boolean) {
-        controlsVisible = show && !locked
+        controlsVisible = show || locked
         findViewById<View>(R.id.videoControls).visibility = if (controlsVisible) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.topBar).visibility = if (locked) View.GONE else View.VISIBLE
         findViewById<View>(R.id.btnLock).visibility = if (eps.isNotEmpty() && (isLandscape() || locked)) View.VISIBLE else View.GONE
         main.removeCallbacks(hideControls)
-        if (controlsVisible) main.postDelayed(hideControls, 4000)
+        if (controlsVisible && !locked) main.postDelayed(hideControls, 4000)
     }
     private fun setLocked(value: Boolean) {
         locked = value
         if (value) { episodeDialog?.dismiss(); findViewById<View>(R.id.speedPanel).visibility = View.GONE }
+        gestureEligible = false
+        gestureMode = 0
+        if (holdingSpeed) { player.setPlaybackSpeed(speed); holdingSpeed = false }
+        findViewById<View>(R.id.hudBox).visibility = View.GONE
         findViewById<ImageButton>(R.id.btnLock).apply {
             setImageResource(if (value) R.drawable.ic_player_lock else R.drawable.ic_player_unlock)
             contentDescription = if (value) "解锁屏幕" else "锁定屏幕"
         }
-        showControls(!value)
+        updateControls()
+        showControls(true)
     }
 
     private fun speedLabel(value: Float) = (if (value % 1f == 0f) value.toInt().toString() else value.toString()) + "×"
@@ -602,7 +609,7 @@ class PlayerActivity : ThemedActivity() {
     private fun showToast(message: String) { Toast.makeText(this, message, Toast.LENGTH_SHORT).show() }
     private fun isLandscape() = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     private fun toggleFullscreen() {
-        if (locked) return
+        if (locked) setLocked(false)
         requestedOrientation = if (isLandscape()) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
     private fun applySystemBars() {
@@ -625,14 +632,15 @@ class PlayerActivity : ThemedActivity() {
     }
     override fun onConfigurationChanged(config: Configuration) {
         super.onConfigurationChanged(config)
+        if (!isLandscape() && locked) setLocked(false)
         episodeDialog?.dismiss(); findViewById<View>(R.id.speedPanel).visibility = View.GONE
         applySystemBars()
     }
     private fun leaveFullscreenOrFinish() {
         when {
-            locked -> setLocked(false)
             findViewById<View>(R.id.speedPanel).visibility == View.VISIBLE -> findViewById<View>(R.id.speedPanel).visibility = View.GONE
             isLandscape() -> toggleFullscreen()
+            locked -> setLocked(false)
             else -> finish()
         }
     }
@@ -640,7 +648,7 @@ class PlayerActivity : ThemedActivity() {
     override fun onBackPressed() { leaveFullscreenOrFinish() }
 
     private var gestureEligible = false
-    private var unlockTouch = false
+    private var lockTouchAllowed = false
     private var downX = 0f
     private var downY = 0f
     private var downPosition = 0L
@@ -653,18 +661,20 @@ class PlayerActivity : ThemedActivity() {
         GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(event: MotionEvent) = true
             override fun onSingleTapConfirmed(event: MotionEvent): Boolean {
+                if (locked) return true
                 val panel = findViewById<View>(R.id.speedPanel)
                 if (panel.visibility == View.VISIBLE) { panel.visibility = View.GONE; showControls(true) }
                 else showControls(!controlsVisible)
                 return true
             }
-            override fun onDoubleTap(event: MotionEvent): Boolean { togglePlayPause(); return true }
+            override fun onDoubleTap(event: MotionEvent): Boolean { if (!locked) togglePlayPause(); return true }
             override fun onLongPress(event: MotionEvent) {
-                if (player.isPlaying && remote == null && gestureMode == 0) {
+                if (!locked && player.isPlaying && remote == null && gestureMode == 0) {
                     holdingSpeed = true; player.setPlaybackSpeed(2f); showHud("临时倍速", "2×")
                 }
             }
             override fun onScroll(start: MotionEvent?, event: MotionEvent, dx: Float, dy: Float): Boolean {
+                if (locked) return true
                 val deltaX = event.rawX - downX; val deltaY = event.rawY - downY
                 val stage = findViewById<View>(R.id.videoStage)
                 val visibleBounds = Rect()
@@ -699,8 +709,13 @@ class PlayerActivity : ThemedActivity() {
     }
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (locked) {
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) unlockTouch = hit(findViewById(R.id.btnLock), event)
-            return if (unlockTouch) super.dispatchTouchEvent(event) else true
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                lockTouchAllowed = listOf(R.id.btnLock, R.id.btnPlayPause, R.id.btnFull)
+                    .any { hit(findViewById(it), event) }
+            }
+            val handled = if (lockTouchAllowed) super.dispatchTouchEvent(event) else true
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) lockTouchAllowed = false
+            return handled
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             gestureEligible = hit(findViewById(R.id.videoStage), event) &&

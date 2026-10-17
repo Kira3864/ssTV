@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="光影票根">
+  <rect width="512" height="512" rx="112" fill="#EACFA9"/>
+  <g transform="rotate(-12 256 256)">
+    <path d="M117 147H395Q415 147 415 167V224C375 224 375 288 415 288V345Q415 365 395 365H117Q97 365 97 345V288C137 288 137 224 97 224V167Q97 147 117 147Z" fill="#7E3D2E"/>
+    <path d="M338 170V186M338 209V225M338 248V264M338 287V303M338 326V342" fill="none" stroke="#EACFA9" stroke-width="8" stroke-linecap="round"/>
+    <path d="M203 208Q203 197 213 203L280 246Q294 255 280 264L213 307Q203 313 203 302Z" fill="#FFF7E7"/>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="口袋电视">
+  <rect width="512" height="512" rx="112" fill="#F4EBDD"/>
+  <path d="M216 171L184 121M274 171L308 121" fill="none" stroke="#46372E" stroke-width="20" stroke-linecap="round"/>
+  <rect x="91" y="170" width="330" height="229" rx="65" fill="#46372E"/>
+  <rect x="114" y="193" width="240" height="182" rx="43" fill="#FFF9EF"/>
+  <path d="M211 243Q211 234 219 239L280 277Q289 283 280 289L219 327Q211 332 211 323Z" fill="#B96040"/>
+  <circle cx="386" cy="245" r="10" fill="#EBAE7C"/>
+  <path d="M385 283V323" stroke="#EBAE7C" stroke-width="11" stroke-linecap="round"/>
+  <path d="M150 398V411M362 398V411" stroke="#46372E" stroke-width="18" stroke-linecap="round"/>
+</svg>
