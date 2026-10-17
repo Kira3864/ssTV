@@ -27,7 +27,7 @@ class DlReport(
  * - HLS（.m3u8）：拉取播放列表 → 分段并发下载 → 按顺序拼成一个 .ts 文件
  * - 直链（mp4 等）：直接落盘
  * 落盘一律先写 .part，校验通过才改名，中途失败不会留下半个坏文件；
- * 传了 [CancelFlag] 就能中途取消（取消同样会把 .part 清掉）。
+ * 暂停或网络中断保留已校验的数据，显式删除才清理临时文件。
  */
 object Downloader {
 
@@ -46,7 +46,7 @@ object Downloader {
         val key = md5(url)
         return dir.listFiles()?.firstOrNull {
             it.isFile && it.name.startsWith("$key.") &&
-                    !it.name.endsWith(".part") && it.length() > 1024
+                    !it.name.contains(".part") && it.length() > 1024
         }
     }
 
@@ -87,7 +87,6 @@ object Downloader {
         }
 
         val tmp = File(dir, "$key.part")
-        if (tmp.exists()) tmp.delete()
 
         val ok = try {
             if (isHls) hls(real, tmp, flag, report) else plain(real, tmp, flag, report)
@@ -96,11 +95,10 @@ object Downloader {
         }
 
         if (flag?.cancelled == true) {
-            tmp.delete()
+            if (!flag.keepPartial) discard(ctx,url,api,vid,title,series)
             return null
         }
         if (!ok || !tmp.exists() || tmp.length() < 1024) {
-            tmp.delete()
             return null
         }
         if (target.exists()) target.delete()
@@ -108,6 +106,7 @@ object Downloader {
             val copied = runCatching { tmp.copyTo(target, overwrite = true); tmp.delete(); target }.getOrNull()
             if (copied == null) return null
         }
+        discard(ctx,url,api,vid,title,series)
         DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic, api, sourceName, vid, series))
         return target
     }
@@ -137,15 +136,18 @@ object Downloader {
         if (segs.isEmpty()) return false
 
         val segDir = File(out.parentFile, out.nameWithoutExtension + ".segs")
-        if (segDir.exists()) segDir.deleteRecursively()
         segDir.mkdirs()
+        val manifest=File(segDir,"playlist")
+        if (!manifest.exists() || manifest.readText() != text) {
+            segDir.deleteRecursively(); segDir.mkdirs(); manifest.writeText(text)
+        }
 
         val total = segs.size
         val done = AtomicInteger(0)
         val bytes = AtomicLong(0)
         val progressLock = Any()
         val connections = java.util.concurrent.ConcurrentHashMap.newKeySet<HttpURLConnection>()
-        val pool = Executors.newFixedThreadPool(minOf(8, total))
+        val pool = Executors.newFixedThreadPool(minOf(TransferBudget.workers, total))
         val jobs = ArrayList<java.util.concurrent.Future<Boolean>>(total)
         for (i in 0 until total) {
             val idx = i
@@ -153,7 +155,11 @@ object Downloader {
             jobs.add(pool.submit<Boolean> {
                 if (flag?.cancelled == true) return@submit false
                 val f = File(segDir, "%06d.ts".format(idx))
-                val ok = fetchTo(segUrl, f, flag, connections)
+                val partial=File(segDir,"%06d.part".format(idx))
+                val ok = if (f.isFile && f.length()>0) true else {
+                    val fetched=TransferBudget.transfer(flag) { fetchTo(segUrl,partial,flag,connections) }
+                    fetched && partial.renameTo(f)
+                }
                 synchronized(progressLock) {
                     val d = done.incrementAndGet()
                     val got = bytes.addAndGet(f.length())
@@ -173,7 +179,7 @@ object Downloader {
             pool.shutdownNow()
             connections.forEach { runCatching { it.disconnect() } }
             val stopped = runCatching { pool.awaitTermination(30, TimeUnit.SECONDS) }.getOrDefault(false)
-            if (stopped) segDir.deleteRecursively()
+            if (stopped && flag?.cancelled == true && !flag.keepPartial) segDir.deleteRecursively()
             return false
         }
 
@@ -181,12 +187,10 @@ object Downloader {
         FileOutputStream(out).buffered(256*1024).use { fos ->
             for (i in 0 until total) {
                 if (flag?.cancelled == true) {
-                    segDir.deleteRecursively()
                     return false
                 }
                 val f = File(segDir, "%06d.ts".format(i))
                 if (!f.exists() || f.length() == 0L) {
-                    segDir.deleteRecursively()
                     return false
                 }
                 f.inputStream().use { it.copyTo(fos, 128 * 1024) }
@@ -213,13 +217,59 @@ object Downloader {
             val encoding = conn.getHeaderField("Content-Encoding").orEmpty()
             if (size >= 4*1024*1024 && ranges && !validator.isNullOrBlank() && (encoding.isBlank() || encoding == "identity")) {
                 conn.disconnect()
-                if (RangeTransfer.download(out,size,validator,flag,{ open(url) },report)) return true
+                if (RangeTransfer.download(out,size,validator,flag,{ open(url) },report,url)) return true
+                // Preserve verified ranges after a network interruption; a retry resumes them.
+                if (File(out.parentFile,out.name+".ranges").listFiles().orEmpty().any { it.extension == "part" && it.length()>0 }) return false
                 if (flag?.cancelled == true || Thread.currentThread().isInterrupted) return false
                 val fallback = open(url); flag?.watch(fallback)
                 try { return copyResponse(fallback,out,flag,report) } finally { flag?.unwatch(fallback); fallback.disconnect() }
             }
-            return copyResponse(conn,out,flag,report)
+            return resumeResponse(url,conn,out,flag,report)
         } finally { flag?.unwatch(conn); conn.disconnect() }
+    }
+
+    private fun resumeResponse(url: String, initial: HttpURLConnection, out: File, flag: CancelFlag?, report: (Int,Long,Long)->Unit): Boolean {
+        val total=initial.contentLengthLong
+        val validator=initial.getHeaderField("ETag")?.takeUnless { it.startsWith("W/") } ?: initial.getHeaderField("Last-Modified")
+        val meta=File(out.parentFile,out.name+".resume")
+        val signature="$url\n$total\n$validator"
+        val offset=out.length()
+        if (offset>0 && total>0 && offset<=total && !validator.isNullOrBlank() && meta.exists() && meta.readText()==signature) {
+            initial.disconnect()
+            val conn=open(url); flag?.watch(conn)
+            try {
+                conn.setRequestProperty("Range","bytes=$offset-${total-1}"); conn.setRequestProperty("If-Range",validator)
+                if (offset==total) return true
+                if (conn.responseCode==206 && conn.getHeaderField("Content-Range")=="bytes $offset-${total-1}/$total") {
+                    var got=offset
+                    conn.inputStream.use { input -> FileOutputStream(out,true).buffered(256*1024).use { output ->
+                        val buf=ByteArray(128*1024)
+                        while (got<total) {
+                            if (flag?.cancelled==true || Thread.currentThread().isInterrupted) return false
+                            val n=input.read(buf,0,minOf(buf.size.toLong(),total-got).toInt()); if(n<0) return false
+                            output.write(buf,0,n); got+=n; report((got*100/total).toInt().coerceAtMost(99),got,total)
+                        }
+                    } }
+                    report(100,total,total); return out.length()==total
+                }
+            } finally { flag?.unwatch(conn); conn.disconnect() }
+            val fresh=open(url); flag?.watch(fresh)
+            try {
+                if(fresh.responseCode!=200) return false
+                val v=fresh.getHeaderField("ETag")?.takeUnless { it.startsWith("W/") } ?: fresh.getHeaderField("Last-Modified")
+                meta.writeText("$url\n${fresh.contentLengthLong}\n$v")
+                return copyResponse(fresh,out,flag,report)
+            } finally { flag?.unwatch(fresh); fresh.disconnect() }
+        }
+        meta.writeText(signature)
+        return copyResponse(initial,out,flag,report)
+    }
+
+    fun discard(ctx: Context, url: String, api: String, vid: String, title: String, series: Boolean) {
+        val root=File(ctx.filesDir,"downloads")
+        val dir=if(series) File(root,md5(api+"|"+vid.ifBlank { title })) else root
+        val key=md5(if(api.isBlank()) url else api+"|"+url)
+        listOf("$key.part","$key.part.resume","$key.part.ranges","$key.segs").forEach { File(dir,it).deleteRecursively() }
     }
 
     private fun copyResponse(conn: HttpURLConnection, out: File, flag: CancelFlag?, report: (Int, Long, Long) -> Unit): Boolean {
@@ -305,9 +355,11 @@ object Downloader {
         private var t0 = System.currentTimeMillis()
         private var b0 = 0L
         private var v = 0L
+        private var initialized = false
 
         @Synchronized fun tick(bytes: Long): Long {
             val now = System.currentTimeMillis()
+            if (!initialized) { initialized=true; t0=now; b0=bytes; return 0 }
             val dt = now - t0
             if (dt >= 600) {
                 val d = bytes - b0

@@ -11,6 +11,10 @@ class CancelFlag {
     var cancelled = false
         private set
 
+    @Volatile var keepPartial = false
+        private set
+    fun pause() { keepPartial = true; cancel() }
+
     fun cancel() {
         cancelled = true
         active.forEach { runCatching { it.disconnect() } }
@@ -19,152 +23,136 @@ class CancelFlag {
     internal fun unwatch(connection: java.net.HttpURLConnection) { active.remove(connection) }
 }
 
-enum class DlState { RUN, OK, FAIL, CANCELED }
+enum class DlState { QUEUED, RUN, PAUSED, OK, FAIL, CANCELED }
 
-/**
- * 一个缓存任务。
- *
- * 单集就一条；「一次挑好几集」也用一条覆盖 —— 进度按
- * 「已完成集数 + 当前集进度」折算，列表里只占一行也不会看乱。
- *
- * 字段都是 [Volatile]：下载线程写，UI 线程读，不走锁。
- */
+/** 每集独立保存；批量选择只共享启动队列。 */
 class DlTask internal constructor(
-    val id: Long,
-    val title: String,
-    val pic: String,
-    val epCount: Int,
-    val eps: List<Pair<String, String>>,
-    val api: String = "", val sourceName: String = "", val vid: String = "", val series: Boolean = false
+    val id: Long, val title: String, val pic: String, val epCount: Int,
+    val eps: List<Pair<String, String>>, val api: String = "", val sourceName: String = "",
+    val vid: String = "", val series: Boolean = false
 ) {
-
-    @Volatile var epName: String = eps.firstOrNull()?.first.orEmpty()
-    @Volatile var epIndex: Int = 0
-    @Volatile var curPercent: Int = 0
-    @Volatile var doneBytes: Long = 0
-    @Volatile var totalBytes: Long = 0
-    @Volatile var speed: Long = 0
-    @Volatile var okCount: Int = 0
-    @Volatile var state: DlState = DlState.RUN
-    @Volatile var note: String = ""
-    @Volatile var finishAt: Long = 0
-
-    val flag = CancelFlag()
-
-    /** 总进度 0-100 */
-    val percent: Int
-        get() {
-            val p = if (epCount <= 1) curPercent
-            else ((epIndex * 100L + curPercent) / epCount).toInt()
-            return p.coerceIn(0, 100)
-        }
-
-    val isRunning: Boolean get() = state == DlState.RUN
-
-    /** 多集时显示「第 3/12 集」 */
-    val stage: String
-        get() = if (epCount <= 1) "" else "第 ${(epIndex + 1).coerceAtMost(epCount)}/$epCount 集"
-
-    fun cancel() = flag.cancel()
-
-    /** 下载线程收尾：定状态、写一句人话 */
-    fun finish() {
-        state = when {
-            flag.cancelled -> DlState.CANCELED
-            okCount > 0 -> DlState.OK
-            else -> DlState.FAIL
-        }
-        if (state == DlState.OK) curPercent = 100
-        speed = 0
-        finishAt = System.currentTimeMillis()
-        note = when (state) {
-            DlState.OK -> if (epCount > 1) "已缓存 ${okCount}/${epCount} 集" else "缓存完成"
-            DlState.CANCELED -> if (okCount > 0) "已取消（成功 $okCount 集）" else "已取消"
-            else -> "没下下来，换个源或稍后再试"
-        }
-    }
+    val mediaKey get() = api.trimEnd('/') + "\u0001" + vid.ifBlank { title }
+    @Volatile var epName = eps.firstOrNull()?.first.orEmpty()
+    @Volatile var epIndex = 0
+    @Volatile var curPercent = 0
+    @Volatile var doneBytes = 0L
+    @Volatile var totalBytes = 0L
+    @Volatile var speed = 0L
+    @Volatile var okCount = 0
+    @Volatile var state = DlState.QUEUED
+    @Volatile var note = ""
+    @Volatile var finishAt = 0L
+    @Volatile var flag = CancelFlag()
+    internal var batch: List<DlTask> = emptyList()
+    internal val worker = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile internal var removed = false
+    val percent get() = curPercent.coerceIn(0,100)
+    val isRunning get() = state == DlState.RUN || state == DlState.QUEUED
+    val stage get() = ""
+    fun cancel() = DlHub.pause(this)
 }
 
-/**
- * 全局缓存任务表。App 活着就在，所以从播放页发起、切到缓存页也能看见；
- * 反过来 App 退出，任务也就没了（没做完的 .part 下次会重下）。
- */
 object DlHub {
-
-    private val seq = AtomicLong(1)
+    private val seq = AtomicLong(System.currentTimeMillis())
     private val tasks = Collections.synchronizedList(ArrayList<DlTask>())
+    private var context: Context? = null
+    @Volatile var onTaskCreated: (() -> Unit)? = null
 
-    /** 最多留几条已结束的记录给用户看结果 */
-    private const val KEEP_DONE = 5
-
-    /**
-     * 一有新任务就回调一次。
-     *
-     * App 里拿它把「桌面悬浮窗」叫起来 —— 不然 DlHub 这个纯数据表
-     * 就得自己去碰 Service 和权限，脏。
-     */
-    @Volatile
-    var onTaskCreated: (() -> Unit)? = null
-
-    fun create(title: String, pic: String, eps: List<Pair<String, String>>, api: String = "", sourceName: String = "", vid: String = "", series: Boolean = eps.size > 1): DlTask {
-        val t = DlTask(seq.getAndIncrement(), title, pic, eps.size.coerceAtLeast(1), eps, api, sourceName, vid, series)
-        synchronized(tasks) {
-            tasks.add(0, t)
-            val done = tasks.filter { it.state != DlState.RUN }
-            if (done.size > KEEP_DONE) tasks.removeAll(done.drop(KEEP_DONE))
+    @Synchronized fun init(ctx: Context) {
+        context = ctx.applicationContext
+        tasks.clear()
+        val raw = ctx.getSharedPreferences("download_tasks",0).getString("tasks","[]")
+        runCatching {
+            val array = org.json.JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val o = array.getJSONObject(i)
+                val t = DlTask(o.getLong("id"),o.getString("title"),o.optString("pic"),1,
+                    listOf(o.getString("ep") to o.getString("url")),o.optString("api"),o.optString("source"),o.optString("vid"),o.optBoolean("series"))
+                t.state = runCatching { DlState.valueOf(o.getString("state")) }.getOrDefault(DlState.PAUSED)
+                if (t.isRunning) t.state = DlState.PAUSED
+                t.curPercent=o.optInt("percent"); t.doneBytes=o.optLong("bytes"); t.totalBytes=o.optLong("total")
+                tasks.add(t); seq.set(maxOf(seq.get(),t.id+1))
+            }
         }
-        // 通知的失败不能连累下载本身，包一层
-        runCatching { onTaskCreated?.invoke() }
-        return t
     }
-
+    @Synchronized internal fun persist() {
+        val c = context ?: return
+        val a = org.json.JSONArray()
+        list().forEach { t -> a.put(org.json.JSONObject().put("id",t.id).put("title",t.title).put("pic",t.pic)
+            .put("ep",t.epName).put("url",t.eps.first().second).put("api",t.api).put("source",t.sourceName)
+            .put("vid",t.vid).put("series",t.series).put("state",t.state.name).put("percent",t.percent)
+            .put("bytes",t.doneBytes).put("total",t.totalBytes)) }
+        c.getSharedPreferences("download_tasks",0).edit().putString("tasks",a.toString()).commit()
+    }
+    @Synchronized fun create(title: String, pic: String, eps: List<Pair<String,String>>, api: String = "", sourceName: String = "", vid: String = "", series: Boolean = eps.size>1): DlTask {
+        require(eps.isNotEmpty())
+        val batch = eps.distinctBy { it.second }.map { ep ->
+            list().firstOrNull { it.api == api && it.eps.first().second == ep.second } ?: DlTask(seq.getAndIncrement(),title,pic,1,listOf(ep),api,sourceName,vid,series).also { tasks.add(it) }
+        }
+        batch.filter { !it.worker.get() && it.state in listOf(DlState.PAUSED,DlState.FAIL,DlState.CANCELED) }.forEach {
+            it.flag=CancelFlag(); it.state=DlState.QUEUED
+        }
+        batch.first().batch = batch
+        persist(); runCatching { onTaskCreated?.invoke() }
+        return batch.first()
+    }
+    @Synchronized internal fun claim(t: DlTask): Boolean {
+        if(t.removed || t.state!=DlState.QUEUED || !t.worker.compareAndSet(false,true)) return false
+        t.state=DlState.RUN; persist(); return true
+    }
     fun list(): List<DlTask> = synchronized(tasks) { ArrayList(tasks) }
-
-    fun runningCount(): Int = list().count { it.isRunning }
-
-    /** 这一集的地址此刻有没有任务在跑 —— 选缓存集数时用来标「缓存中」并防重复下 */
-    fun isDownloading(url: String, api: String? = null): Boolean =
-        list().any { it.isRunning && (api == null || it.api == api) && it.eps.any { p -> p.second == url } }
-
-    fun remove(t: DlTask) {
-        tasks.remove(t)
+    fun runningCount() = list().count { it.isRunning }
+    fun isDownloading(url: String, api: String? = null) = list().any { it.isRunning && (api == null || it.api == api) && it.eps.any { p -> p.second == url } }
+    @Synchronized fun pause(t: DlTask) {
+        if (!t.isRunning) return
+        t.state=DlState.PAUSED; t.flag.pause(); t.speed=0; persist()
     }
-
-    /** 成功的任务：记录已经进了「我的缓存」列表，这里就不必再占一行 */
-    fun clearDone() {
-        tasks.removeAll(list().filter { it.state == DlState.OK })
+    @Synchronized fun resume(ctx: Context, t: DlTask) {
+        if (t.removed || t.isRunning || t.state == DlState.OK || t.worker.get()) return
+        t.flag=CancelFlag(); t.state=DlState.QUEUED; persist()
+        val app=ctx.applicationContext
+        com.songshu.sstv.Bg.dl.execute { DlRunner.run(app,t) }
+        runCatching { onTaskCreated?.invoke() }
     }
+    @Synchronized fun remove(t: DlTask) {
+        t.removed=true; t.flag.cancel(); tasks.remove(t); persist()
+        if (!t.worker.get()) context?.let { Downloader.discard(it,t.eps.first().second,t.api,t.vid,t.title,t.series) }
+    }
+    @Synchronized internal fun finished(ctx: Context, t: DlTask, file: java.io.File?) {
+        if(t.removed) {
+            Downloader.discard(ctx,t.eps.first().second,t.api,t.vid,t.title,t.series)
+            if(file!=null) { DlStore.remove(ctx,t.eps.first().second,t.api); file.delete() }
+        } else if(file!=null) {
+            t.state=DlState.OK; t.curPercent=100; t.okCount=1
+        } else if(t.state!=DlState.PAUSED) t.state=DlState.FAIL
+        t.speed=0; t.finishAt=System.currentTimeMillis(); t.worker.set(false); persist()
+    }
+    fun clearDone() { list().filter { it.state == DlState.OK }.forEach { remove(it) } }
 }
 
-/** 把一批集跑完，进度实时写回任务 */
 object DlRunner {
-
-    /** 返回成功集数 */
+    // Serialize retries of the same episode, including deletion cleanup from an old worker.
+    private val episodeLocks=java.util.concurrent.ConcurrentHashMap<String,Any>()
     fun run(ctx: Context, task: DlTask): Int {
-        var ok = 0
-        for (i in task.eps.indices) {
-            if (task.flag.cancelled) break
-            val ep = task.eps[i]
-            task.epIndex = i
-            task.epName = ep.first
-            task.curPercent = 0
-            task.doneBytes = 0
-            task.totalBytes = 0
-            task.speed = 0
-            val f = Downloader.download(
-                ctx, task.title, ep.first, ep.second, task.pic, task.flag, task.api, task.sourceName, task.vid, task.series
-            ) { r ->
-                task.curPercent = r.percent
-                task.doneBytes = r.bytes
-                task.totalBytes = r.total
-                task.speed = r.speed
-            }
-            if (f != null) {
-                ok++
-                task.okCount = ok
+        val app=ctx.applicationContext
+        var ok=0
+        val batch=task.batch.ifEmpty { listOf(task) }; task.batch=emptyList()
+        for(t in batch) {
+            val key=t.api+"\u0001"+t.eps.first().second
+            synchronized(episodeLocks.getOrPut(key) { Any() }) {
+                if(!DlHub.claim(t)) return@synchronized
+                var file: java.io.File?=null
+                try {
+                    var saved=0L
+                    file=Downloader.download(app,t.title,t.epName,t.eps.first().second,t.pic,t.flag,t.api,t.sourceName,t.vid,t.series) { r ->
+                        t.curPercent=r.percent; t.doneBytes=r.bytes; t.totalBytes=r.total; t.speed=r.speed
+                        if(System.currentTimeMillis()-saved>1000) { DlHub.persist(); saved=System.currentTimeMillis() }
+                    }
+                } catch (_: Exception) { /* Incomplete data remains available for a retry. */ }
+                finally { DlHub.finished(app,t,file) }
+                if(t.state==DlState.OK && !t.removed) ok++
             }
         }
-        task.finish()
         return ok
     }
 }

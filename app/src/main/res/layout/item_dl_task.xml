@@ -74,6 +74,14 @@
             android:text="取消"
             android:textColor="?attr/appTextMuted"
             android:textSize="13sp" />
+        <TextView
+            android:id="@+id/btnDel"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:text="删除"
+            android:textSize="12sp"
+            android:textColor="?attr/appTextMuted" />
     </LinearLayout>
 
     <ProgressBar

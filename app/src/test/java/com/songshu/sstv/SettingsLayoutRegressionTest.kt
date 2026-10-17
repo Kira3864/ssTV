@@ -36,6 +36,8 @@ class SettingsLayoutRegressionTest {
     private val a = Source("片源甲", "https://a.example/api.php/provide/vod")
     private val b = Source("片源乙", "https://b.example/api.php/provide/vod")
     @Before fun reset() {
+        app.getSharedPreferences("download_tasks",0).edit().clear().commit()
+        com.songshu.sstv.cache.DlHub.init(app)
         app.getSharedPreferences("sstv", 0).edit().clear().commit()
         app.getSharedPreferences("sstv_player", 0).edit().clear().commit()
         ThemeStore.select(app, ThemeStore.styles.first { it.id == "paper" }); ThemeStore.setReducedMotion(app, true)

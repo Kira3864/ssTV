@@ -22,6 +22,12 @@ import android.widget.*
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.C
+import androidx.media3.common.Tracks
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -78,6 +84,8 @@ class PlayerActivity : ThemedActivity() {
     private val prefs by lazy { getSharedPreferences("sstv_player", MODE_PRIVATE) }
     private var speed = 1f
     private var episodeDialog: Dialog? = null
+    private var qualityDialog: Dialog? = null
+    private var qualityLabel = "自动"
     private var castDialog: Dialog? = null
     private var discovery: Future<*>? = null
     private var remote: CastDevice? = null
@@ -96,7 +104,12 @@ class PlayerActivity : ThemedActivity() {
         setContentView(R.layout.activity_player)
         view = findViewById(R.id.player)
         view.useController = false
-        player = ExoPlayer.Builder(this).build()
+        val buffer = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(20_000,60_000,1_000,3_000)
+            .setTargetBufferBytes(64*1024*1024)
+            .setPrioritizeTimeOverSizeThresholds(false).build()
+        player = ExoPlayer.Builder(this).setLoadControl(buffer)
+            .setBandwidthMeter(DefaultBandwidthMeter.Builder(this).setInitialBitrateEstimate(1_500_000L).build()).build()
         view.player = player
         seek = findViewById(R.id.playerSeek)
         btnEp = findViewById(R.id.btnEp)
@@ -109,6 +122,7 @@ class PlayerActivity : ThemedActivity() {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && foreground && wantsPlayback && index + 1 < eps.size) play(index + 1)
             }
+            override fun onTracksChanged(tracks: Tracks) { updateQualityLabel() }
             override fun onPlayerError(error: PlaybackException) { showToast("播放失败，可尝试换源") }
         })
         findViewById<View>(R.id.btnBack).setOnClickListener { leaveFullscreenOrFinish() }
@@ -125,6 +139,7 @@ class PlayerActivity : ThemedActivity() {
         findViewById<View>(R.id.btnClearPlayback).setOnClickListener {
             Dlg.confirm(this, "清空播放内容", "同时删除这部影片的相关播放历史？") { clearPlayback() }
         }
+        findViewById<View>(R.id.btnQuality).setOnClickListener { showQualityPicker() }
         btnEp.setOnClickListener { showEpisodes() }
         btnSpeed.setOnClickListener {
             if (remote != null) { showToast("投屏倍速由电视控制"); return@setOnClickListener }
@@ -187,6 +202,8 @@ class PlayerActivity : ThemedActivity() {
         if (i !in eps.indices) return
         if (savePrevious) saveHis()
         val token = ++playRequest
+        qualityDialog?.dismiss(); qualityLabel="自动"
+        player.trackSelectionParameters=player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
         player.stop(); resolved = false; wantsPlayback = autoplay
         index = i; bindWatchPage(); showControls(true)
         val raw = eps[i].substringAfter('\u0001', "")
@@ -198,7 +215,7 @@ class PlayerActivity : ThemedActivity() {
             }
         }
         if (raw.startsWith("file:") || raw.startsWith("content:")) finish(raw)
-        else Bg.io.execute {
+        else Bg.play.execute {
             val result = runCatching { PlayResolver.resolve(raw) }
             showResult {
                 if (token != playRequest) return@showResult
@@ -209,7 +226,10 @@ class PlayerActivity : ThemedActivity() {
 
     private fun startPlay(url: String, startAt: Long) {
         runCatching {
-            player.setMediaSource(buildSource(url)); player.setPlaybackSpeed(speed)
+            val raw=eps.getOrNull(index)?.substringAfter('\u0001').orEmpty()
+            val cached=Downloader.localFile(this,raw,api)
+            val localUrl=cached?.let { android.net.Uri.fromFile(it).toString() } ?: url
+            player.setMediaSource(buildSource(localUrl)); player.setPlaybackSpeed(speed)
             player.prepare(); player.seekTo(startAt.coerceAtLeast(0))
             player.playWhenReady = foreground && wantsPlayback
         }.onFailure { wantsPlayback = false; showToast("播放地址不可用") }
@@ -250,6 +270,7 @@ class PlayerActivity : ThemedActivity() {
 
     private fun updateControls() {
         if (!::player.isInitialized) return
+        TransferBudget.playbackActive=foreground && wantsPlayback && eps.isNotEmpty() && remote==null
         val playing = if (remote != null) remotePlaying else player.playWhenReady
         findViewById<ImageButton>(R.id.btnPlayPause).apply {
             setImageResource(if (playing) R.drawable.ic_player_pause else R.drawable.ic_player_play)
@@ -259,6 +280,7 @@ class PlayerActivity : ThemedActivity() {
         findViewById<View>(R.id.btnNext).visibility = if (!locked && index + 1 < eps.size) View.VISIBLE else View.GONE
         btnEp.visibility = if (!locked && eps.size > 1) View.VISIBLE else View.GONE
         btnSpeed.visibility = if (locked) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.btnQuality).visibility=if(locked || remote!=null) View.GONE else View.VISIBLE
         findViewById<TextView>(R.id.title).text = listOf(vodName, eps.getOrNull(index)?.substringBefore('\u0001')).filterNot { it.isNullOrBlank() }.joinToString(" · ")
         btnSpeed.text = speedLabel(speed)
         seek.isEnabled = !locked && resolved && duration() > 0
@@ -282,7 +304,7 @@ class PlayerActivity : ThemedActivity() {
     }
     private fun setLocked(value: Boolean) {
         locked = value
-        if (value) { episodeDialog?.dismiss(); findViewById<View>(R.id.speedPanel).visibility = View.GONE }
+        if (value) { qualityDialog?.dismiss(); episodeDialog?.dismiss(); findViewById<View>(R.id.speedPanel).visibility = View.GONE }
         if (value) {
             val cancel = MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
             detector.onTouchEvent(cancel); cancel.recycle()
@@ -302,6 +324,49 @@ class PlayerActivity : ThemedActivity() {
     private fun setSpeed(value: Float) {
         speed = value; player.setPlaybackSpeed(value); prefs.edit().putFloat("speed", value).apply()
         updateControls()
+    }
+
+    private fun updateQualityLabel() {
+        val format=player.videoFormat
+        findViewById<TextView>(R.id.btnQuality).text=if(qualityLabel=="自动") "自动" else qualityLabel
+        findViewById<TextView>(R.id.btnQuality).contentDescription="清晰度：$qualityLabel"+
+            (format?.height?.takeIf { it>0 }?.let { "，当前 ${it}p" } ?: "")
+    }
+
+    private fun showQualityPicker() {
+        if(locked || remote!=null) return
+        findViewById<View>(R.id.speedPanel).visibility=View.GONE
+        qualityDialog?.dismiss()
+        val dialog=Dialog(this); qualityDialog=dialog
+        val box=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL; setPadding(dpWatch(18),dpWatch(14),dpWatch(18),dpWatch(18))
+            setBackgroundResource(R.drawable.bg_card)
+        }
+        box.addView(TextView(this).apply {
+            text="清晰度"; textSize=18f; setTypeface(typeface,android.graphics.Typeface.BOLD)
+            setTextColor(themeColor(R.attr.appText)); setPadding(0,0,0,dpWatch(12))
+        })
+        fun option(label: String, override: TrackSelectionOverride?) {
+            box.addView(watchButton(label,qualityLabel==label) {
+                player.trackSelectionParameters=player.trackSelectionParameters.buildUpon()
+                    .clearOverridesOfType(C.TRACK_TYPE_VIDEO).apply { if(override!=null) setOverrideForType(override) }.build()
+                qualityLabel=label; updateQualityLabel(); dialog.dismiss(); showControls(true)
+            },LinearLayout.LayoutParams(-1,dpWatch(44)).apply { topMargin=dpWatch(6) })
+        }
+        option("自动",null)
+        val choices=PlaybackQuality.choices(player.currentTracks)
+        if(choices.isEmpty()) {
+            box.addView(TextView(this).apply {
+                text=if(resolved) "正在读取清晰度" else "视频加载后可选择清晰度"
+                gravity=Gravity.CENTER; textSize=13f; setTextColor(themeColor(R.attr.appTextMuted)); setPadding(0,dpWatch(14),0,0)
+            })
+        } else choices.forEach { option(it.label,it.override) }
+        val scroll=ScrollView(this).apply { addView(box) }
+        dialog.setContentView(scroll)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT)); dialog.window?.setGravity(Gravity.BOTTOM)
+        dialog.show()
+        dialog.window?.setLayout(minOf(resources.displayMetrics.widthPixels-dpWatch(24),dpWatch(360)),-2)
+        dialog.setOnDismissListener { showControls(true) }
     }
 
     private fun showEpisodes() {
@@ -530,9 +595,9 @@ class PlayerActivity : ThemedActivity() {
         } else base
 
         return if (!local && Mc.isHls(safe)) {
-            HlsMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(safe))
+            HlsMediaSource.Factory(ds).setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(5)).createMediaSource(MediaItem.fromUri(safe))
         } else {
-            ProgressiveMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(safe))
+            ProgressiveMediaSource.Factory(ds).setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(5)).createMediaSource(MediaItem.fromUri(safe))
         }
     }
 
@@ -841,6 +906,8 @@ class PlayerActivity : ThemedActivity() {
         if (holdingSpeed) { player.setPlaybackSpeed(speed); holdingSpeed = false }
         main.removeCallbacks(ticker)
         findViewById<View>(R.id.speedPanel).visibility = View.GONE
+        qualityDialog?.dismiss()
+        TransferBudget.playbackActive=false
         super.onPause()
     }
     override fun onSaveInstanceState(outState: Bundle) {
@@ -854,6 +921,8 @@ class PlayerActivity : ThemedActivity() {
         discovery?.cancel(true); main.removeCallbacksAndMessages(null)
         remote?.let { device -> castCommand { DlnaCast.pause(device) } }
         castCommands.shutdown(); player.release()
+        qualityDialog?.dismiss()
+        TransferBudget.playbackActive=false
         super.onDestroy()
     }
 }
