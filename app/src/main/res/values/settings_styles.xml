@@ -1,0 +1,39 @@
+<resources>
+    <style name="SettingsSection">
+        <item name="android:layout_width">match_parent</item><item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">22dp</item><item name="android:layout_marginEnd">22dp</item>
+        <item name="android:paddingTop">18dp</item><item name="android:paddingBottom">10dp</item>
+        <item name="android:textSize">16sp</item><item name="android:textStyle">bold</item><item name="android:textColor">?attr/appText</item>
+    </style>
+    <style name="SettingsCard">
+        <item name="android:layout_width">match_parent</item><item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginHorizontal">16dp</item><item name="android:orientation">vertical</item><item name="android:background">@drawable/bg_card</item>
+    </style>
+    <style name="SettingsRow">
+        <item name="android:layout_width">match_parent</item><item name="android:layout_height">wrap_content</item><item name="android:minHeight">56dp</item>
+        <item name="android:orientation">horizontal</item><item name="android:gravity">center_vertical</item>
+        <item name="android:paddingHorizontal">16dp</item><item name="android:paddingVertical">12dp</item>
+    </style>
+    <style name="SettingsLabel">
+        <item name="android:layout_width">0dp</item><item name="android:layout_height">wrap_content</item><item name="android:layout_weight">1</item>
+        <item name="android:textSize">14sp</item><item name="android:textStyle">bold</item><item name="android:textColor">?attr/appText</item>
+    </style>
+    <style name="SettingsValue">
+        <item name="android:layout_width">wrap_content</item><item name="android:layout_height">wrap_content</item><item name="android:maxWidth">112dp</item>
+        <item name="android:maxLines">1</item><item name="android:ellipsize">end</item><item name="android:layout_marginStart">12dp</item>
+        <item name="android:textSize">13sp</item><item name="android:textColor">?attr/appTextMuted</item>
+    </style>
+    <style name="SettingsChevron">
+        <item name="android:layout_width">20dp</item><item name="android:layout_height">wrap_content</item><item name="android:gravity">end</item>
+        <item name="android:text">›</item><item name="android:textSize">22sp</item><item name="android:textColor">?attr/appTextMuted</item><item name="android:importantForAccessibility">no</item>
+    </style>
+    <style name="SettingsSwitch">
+        <item name="android:layout_width">match_parent</item><item name="android:layout_height">wrap_content</item><item name="android:minHeight">56dp</item>
+        <item name="android:paddingHorizontal">16dp</item><item name="android:paddingVertical">12dp</item><item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item><item name="android:textColor">?attr/appText</item><item name="switchPadding">16dp</item>
+    </style>
+    <style name="SettingsDivider">
+        <item name="android:layout_width">match_parent</item><item name="android:layout_height">1dp</item><item name="android:layout_marginHorizontal">16dp</item>
+        <item name="android:background">?attr/appDivider</item><item name="android:alpha">0.5</item>
+    </style>
+</resources>

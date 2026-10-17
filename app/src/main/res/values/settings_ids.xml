@@ -1,0 +1,4 @@
+<resources>
+    <item name="sourceSearch" type="id" />
+    <item name="sourceList" type="id" />
+</resources>

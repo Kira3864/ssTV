@@ -204,9 +204,9 @@ class CacheActivity : ThemedActivity() {
         val items = DlStore.list(this).filter { File(it.path).exists() }
         ad.submit(items)
         summary.text = "共 ${items.size} 个 · 占用 ${fmtSize(items.sumOf { it.size })}"
-        if (items.isEmpty() && DlHub.runningCount() == 0) {
-            hint.text = "还没有缓存。\n影片详情页点「缓存选集」、播放页顶栏点「缓存」，" +
-                    "挑好要下哪几集（能多选）就开始了。"
+        summary.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
+        if (items.isEmpty() && DlHub.list().isEmpty()) {
+            hint.text = "暂无缓存"
             hint.visibility = View.VISIBLE
         } else {
             hint.visibility = View.GONE

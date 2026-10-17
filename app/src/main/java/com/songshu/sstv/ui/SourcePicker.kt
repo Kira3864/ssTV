@@ -31,7 +31,7 @@ object SourcePicker {
             text = "管理"; textSize = 14f; gravity = Gravity.CENTER
             setTextColor(context.themeColor(R.attr.appAccent)); setPadding(dp(12), 0, 0, 0)
             setOnClickListener {
-                dialog.dismiss(); context.startActivity(Intent(context, SettingsActivity::class.java))
+                dialog.dismiss(); context.startActivity(Intent(context, SettingsActivity::class.java).putExtra("manageSources", true))
             }
         }, LinearLayout.LayoutParams(-2, dp(48)))
         box.addView(head)

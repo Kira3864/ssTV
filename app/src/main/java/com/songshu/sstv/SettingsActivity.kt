@@ -1,17 +1,20 @@
 package com.songshu.sstv
 
+import android.app.Dialog
+import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
-import androidx.core.content.ContextCompat
 import com.songshu.sstv.cache.CacheMgr
 import com.songshu.sstv.cache.DlStore
 import com.songshu.sstv.data.Source
 import com.songshu.sstv.data.SourceStore
 import com.songshu.sstv.data.VodApi
+import com.songshu.sstv.ui.SourceManagerDialog
+import com.songshu.sstv.ui.SourceAction
+import com.songshu.sstv.ui.ThemePicker
 import com.songshu.sstv.ui.Dlg
 import com.songshu.sstv.ui.DlOverlay
 import org.json.JSONArray
@@ -19,14 +22,12 @@ import org.json.JSONObject
 
 class SettingsActivity : ThemedActivity() {
 
-    private lateinit var sourceBox: LinearLayout
-    private lateinit var sourceCount: TextView
+    private var sourceManager: SourceManagerDialog? = null
+    private var themeDialog: Dialog? = null
     private lateinit var cacheInfo: TextView
     private lateinit var swAdult: SwitchCompat
     private lateinit var swCache: SwitchCompat
-    private lateinit var btnOverlay: TextView
 
-    private val d get() = resources.displayMetrics.density
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,21 +37,21 @@ class SettingsActivity : ThemedActivity() {
             isChecked = PlaybackPreferences.restoreLast(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> PlaybackPreferences.setRestoreLast(this@SettingsActivity, checked) }
         }
-        renderAppearance()
-        sourceBox = findViewById(R.id.sourceBox)
-        sourceCount = findViewById(R.id.sourceCount)
+        findViewById<TextView>(R.id.themeValue).text = ThemeStore.current(this).label
+        findViewById<SwitchCompat>(R.id.swReduceMotion).apply {
+            isChecked = ThemeStore.reducedMotion(this@SettingsActivity)
+            setOnCheckedChangeListener { _, value -> ThemeStore.setReducedMotion(this@SettingsActivity, value) }
+        }
         cacheInfo = findViewById(R.id.cacheInfo)
         swAdult = findViewById(R.id.swFilterAdult)
         swCache = findViewById(R.id.swAutoCache)
-        btnOverlay = findViewById(R.id.btnOverlay)
 
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
-        findViewById<View>(R.id.btnAddSource).setOnClickListener { addSource() }
-        findViewById<View>(R.id.btnImportTvbox).setOnClickListener { importTvbox() }
-        findViewById<View>(R.id.btnRestore).setOnClickListener { restoreDefaults() }
-        findViewById<View>(R.id.btnTestAll).setOnClickListener { testAllSources() }
+        findViewById<View>(R.id.btnManageSources).setOnClickListener { showSourceManager() }
+        findViewById<View>(R.id.btnTheme).setOnClickListener { showAppearance() }
+        findViewById<View>(R.id.btnDownloads).setOnClickListener { startActivity(Intent(this, CacheActivity::class.java)) }
         findViewById<View>(R.id.btnClearCache).setOnClickListener {
-            Dlg.confirm(this, "清空在线缓存", "只清「边看边缓存」的临时片段，已下载的整集不受影响。") {
+            Dlg.confirm(this, "清理在线播放缓存", "已缓存的视频不会删除。") {
                 Bg.io.execute {
                     CacheMgr.clear(this)
                     showResult { refreshCacheInfo() }
@@ -58,40 +59,19 @@ class SettingsActivity : ThemedActivity() {
             }
         }
 
-        // 桌面悬浮窗：这个开关的「所有权」在系统手里，我们能做的只是把人送过去
-        btnOverlay.setOnClickListener {
-            if (DlOverlay.canDraw(this)) {
-                Dlg.tip(
-                    this,
-                    getString(R.string.overlay_already_title),
-                    getString(R.string.overlay_already_body)
-                )
-            } else {
-                Dlg.confirm(
-                    this,
-                    getString(R.string.overlay_perm_tip_title),
-                    getString(R.string.overlay_perm_tip_body)
-                ) { DlOverlay.openPerm(this) }
-            }
-        }
+        findViewById<View>(R.id.btnOverlay).setOnClickListener { DlOverlay.openPerm(this) }
 
         swAdult.isChecked = SourceStore.filterAdult(this)
         swCache.isChecked = SourceStore.autoCache(this)
         swAdult.setOnCheckedChangeListener { _, v -> SourceStore.setFilterAdult(this, v) }
         swCache.setOnCheckedChangeListener { _, v -> SourceStore.setAutoCache(this, v) }
 
-        // 版本号从包里读，不再硬编码 —— 之前写死的 "松鼠TV v1.1" 挂了 6 个版本没跟上
         @Suppress("DEPRECATION")
         val vn = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
             .getOrNull().orEmpty()
-        findViewById<TextView>(R.id.about).text = buildString {
-            append("${getString(R.string.app_name)} $vn\n\n")
-            append("纯净播放器：没有广告 SDK、没有积分邀请、不上传任何数据。")
-            append("所有内容都来自你自己配置的第三方接口，本 App 不提供、不存储、不代理任何影片。\n\n")
-            append("搜索是「多片源聚合」的：一次并发搜所有可用源，按片源分组，响应快的排在前面，")
-            append("每条结果后面标着它来自哪个源。\n\n")
-            append("存储说明：缓存的视频放在 App 私有目录，卸载 App 会一起删除，重要内容请自行导出。")
-        }
+        findViewById<TextView>(R.id.about).text = vn.ifBlank { "—" }
+        if (intent.getBooleanExtra("manageSources", false)) showSourceManager()
+
     }
 
     override fun onResume() {
@@ -103,9 +83,7 @@ class SettingsActivity : ThemedActivity() {
     }
 
     private fun refreshOverlay() {
-        btnOverlay.text = getString(
-            if (DlOverlay.canDraw(this)) R.string.overlay_on else R.string.overlay_off
-        )
+        findViewById<TextView>(R.id.overlayValue).text = if (DlOverlay.canDraw(this)) "已开启" else "去授权"
     }
 
     private fun refreshCacheInfo() {
@@ -113,7 +91,8 @@ class SettingsActivity : ThemedActivity() {
             val online = CacheMgr.size(this)
             val dl = DlStore.totalSize(this)
             showResult {
-                cacheInfo.text = "边看边缓存：${fmtSize(online)}\n已下载整集：${fmtSize(dl)}"
+                cacheInfo.text = fmtSize(online)
+                findViewById<TextView>(R.id.downloadSize).text = fmtSize(dl)
             }
         }
     }
@@ -121,86 +100,51 @@ class SettingsActivity : ThemedActivity() {
     // ---------------- 片源 ----------------
 
     private fun renderSources() {
-        sourceBox.removeAllViews()
-        val all = SourceStore.sources(this)
-        val cur = SourceStore.current(this)
-        val searchable = all.count { !it.name.contains("(无搜索)") }
-        sourceCount.text = "共 ${all.size} 个片源 · $searchable 个支持搜索（带「(无搜索)」的只能浏览分类）"
-        all.forEach { s ->
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(16), dp(12), dp(16), dp(10))
-                background = ContextCompat.getDrawable(this@SettingsActivity, R.drawable.bg_card)
-            }
-            val clp = LinearLayout.LayoutParams(-1, -2)
-            clp.setMargins(dp(16), dp(8), dp(16), 0)
-            card.layoutParams = clp
+        findViewById<TextView>(R.id.sourceSummary).text = "${SourceStore.sources(this).size} 个"
+        sourceManager?.refresh()
+    }
 
-            val head = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
+    private fun showSourceManager() {
+        if (sourceManager?.isShowing == true) return
+        val dialog = SourceManagerDialog(this) { command, source ->
+            when (command) {
+                SourceAction.SELECT -> source?.let { SourceStore.setCurrent(this, it); renderSources() }
+                SourceAction.EDIT -> source?.let { editSource(it) }
+                SourceAction.TEST -> source?.let { testSource(it) }
+                SourceAction.DELETE -> source?.let { delSource(it) }
+                SourceAction.ADD -> addSource()
+                SourceAction.IMPORT -> importTvbox()
+                SourceAction.TEST_ALL -> testAllSources()
+                SourceAction.RESTORE -> restoreDefaults()
             }
-            val nm = TextView(this).apply {
-                text = if (s.api == cur.api) "${s.name}   ✓ 当前" else s.name
-                setTextColor(this@SettingsActivity.themeColor(R.attr.appText))
-                textSize = 15f
-            }
-            head.addView(nm, LinearLayout.LayoutParams(0, -2, 1f))
-            val del = TextView(this).apply {
-                text = "删除"
-                textSize = 13f
-                setTextColor(this@SettingsActivity.themeColor(R.attr.appAccent))
-                setPadding(dp(10), dp(6), dp(4), dp(6))
-                setOnClickListener { delSource(s) }
-            }
-            head.addView(del)
-            card.addView(head)
+        }
+        sourceManager = dialog
+        dialog.setOnDismissListener { sourceManager = null }
+        dialog.show()
+    }
 
-            card.addView(TextView(this).apply {
-                text = s.api
-                textSize = 11.5f
-                setPadding(0, dp(4), 0, 0)
-                setTextColor(this@SettingsActivity.themeColor(R.attr.appTextMuted))
-            })
-
-            val ops = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val olp = LinearLayout.LayoutParams(-1, -2)
-            olp.topMargin = dp(10)
-            ops.layoutParams = olp
-            if (s.api != cur.api) {
-                ops.addView(smallBtn("设为当前") {
-                    SourceStore.setCurrent(this, s)
-                    renderSources()
-                })
+    private fun showAppearance() {
+        themeDialog = ThemePicker.show(this) { style ->
+            if (ThemeStore.current(this).id != style.id) {
+                ThemeStore.select(this, style); recreate()
             }
-            ops.addView(smallBtn("编辑") { editSource(s) })
-            ops.addView(smallBtn("测一下") { testSource(s) })
-            card.addView(ops)
-
-            sourceBox.addView(card)
         }
     }
 
-    private fun smallBtn(label: String, on: () -> Unit): TextView {
-        val tv = TextView(this).apply {
-            text = label
-            textSize = 13f
-            gravity = Gravity.CENTER
-            setTextColor(this@SettingsActivity.themeColor(R.attr.appText))
-            background = ContextCompat.getDrawable(this@SettingsActivity, R.drawable.bg_btn_ghost)
-            setPadding(dp(14), dp(8), dp(14), dp(8))
-            setOnClickListener { on() }
-        }
-        val lp = LinearLayout.LayoutParams(-2, -2)
-        lp.rightMargin = dp(8)
-        tv.layoutParams = lp
-        return tv
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        sourceManager?.resize(); themeDialog?.dismiss()
+    }
+
+    override fun onDestroy() {
+        sourceManager?.dismiss(); themeDialog?.dismiss()
+        super.onDestroy()
     }
 
     private fun addSource() {
         Dlg.input(
             this, "添加片源",
-            listOf("名称，例如：某某资源", "接口地址，例如：https://xxx.com/api.php/provide/vod")
+            listOf("片源名称", "接口地址")
         ) { v ->
             val nm = v.getOrElse(0) { "" }.ifBlank { "新片源" }
             val api = VodApi.normalize(v.getOrElse(1) { "" })
@@ -271,7 +215,7 @@ class SettingsActivity : ThemedActivity() {
                     Dlg.tip(
                         this, "没通",
                         "「${s.name}」没返回数据：${r.exceptionOrNull()?.message ?: "空响应"}\n\n" +
-                                "常见原因：域名挂了、被墙、接口路径不对、或者它需要授权。"
+                                "请检查接口地址或稍后重试。"
                     )
                 }
             }
@@ -303,11 +247,10 @@ class SettingsActivity : ThemedActivity() {
                     val msg = buildString {
                         append("可用 $okN / ${all.size} 个。\n")
                         if (badNow.isEmpty()) {
-                            append("\n全部正常，随便用。")
+                            append("\n全部可用。")
                         } else {
-                            append("\n下面这些现在连不上（域名挂了或被墙，过阵子可能自己好）：\n")
+                            append("\n暂不可用：\n")
                             badNow.forEach { append("· $it\n") }
-                            append("\n在列表里把它们删掉，或者手动添加别的源都可以。")
                         }
                     }
                     Dlg.tip(this, "检测完成", msg.trim())
@@ -321,8 +264,7 @@ class SettingsActivity : ThemedActivity() {
         val n = SourceStore.DEFAULT.size
         Dlg.confirm(
             this, "恢复预置片源",
-            "会把片源列表换成出厂预置的 $n 个（都实测能连上），" +
-                    "你自己手动添加的会被清掉。要继续吗？"
+            "替换为 $n 个预置片源，并移除手动添加的片源？"
         ) {
             SourceStore.restoreDefaults(this)
             renderSources()
@@ -338,12 +280,6 @@ class SettingsActivity : ThemedActivity() {
         Dlg.input(this, "从配置链接导入", listOf("粘贴 TVBox 配置地址（0.json 那种）")) { v ->
             val url = v.getOrElse(0) { "" }.trim()
             if (url.isBlank()) return@input
-            Dlg.tip(
-                this, "说明",
-                "只会导入配置里 type=1 的标准接口。\n\n" +
-                        "type=3 的那种（csp_ 开头）需要 TVBox 自带的脚本引擎才能跑，" +
-                        "本 App 不做，所以会被跳过 —— 这不是漏了，是跑不了。"
-            )
             Bg.io.execute {
                 val txt = runCatching { VodApi.get(url, 20000) }.getOrNull()
                 val found = ArrayList<Source>()
@@ -363,7 +299,7 @@ class SettingsActivity : ThemedActivity() {
                 }
                 showResult {
                     if (found.isEmpty()) {
-                        Dlg.tip(this, "没导到东西", "这个配置里没有 type=1 的可用接口，或者链接打不开。")
+                        Dlg.tip(this, "没导到东西", "配置中没有可导入的标准接口，或链接无法访问。")
                     } else {
                         val list = SourceStore.sources(this)
                         var added = 0
@@ -375,7 +311,7 @@ class SettingsActivity : ThemedActivity() {
                         }
                         SourceStore.save(this, list)
                         renderSources()
-                        Dlg.tip(this, "导入完成", "新增 $added 个片源。挨个点「测一下」，能通的才会好用。")
+                        Dlg.tip(this, "导入完成", "新增 $added 个片源。")
                     }
                 }
             }
@@ -391,59 +327,4 @@ class SettingsActivity : ThemedActivity() {
         return valid
     }
 
-    private fun renderAppearance() {
-        val box = findViewById<LinearLayout>(R.id.themeOptions)
-        val current = ThemeStore.current(this)
-        ThemeStore.styles.forEach { style ->
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(18), dp(16), dp(18), dp(16))
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(style.background)
-                    cornerRadius = dp(style.radius.toInt()).toFloat()
-                    setStroke(dp(if (current.id == style.id) 2 else 1),
-                        if (current.id == style.id) style.accent else style.surface)
-                }
-                contentDescription = "${style.label}，${style.description}，${if (current.id == style.id) "已选中" else "点按应用"}"
-                isSelected = current.id == style.id
-            }
-            card.addView(TextView(this).apply {
-                text = "${style.label}    ${if (current.id == style.id) "✓ 使用中" else "↗"}"
-                setTextColor(style.ink)
-                textSize = 17f
-                typeface = android.graphics.Typeface.create(style.font, android.graphics.Typeface.BOLD)
-            })
-            card.addView(TextView(this).apply {
-                text = style.description
-                textSize = 12f
-                setTextColor(style.ink)
-                alpha = .8f
-                setPadding(0, dp(6), 0, dp(12))
-            })
-            val sample = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            listOf(style.accent, style.surface, style.ink).forEach { color ->
-                sample.addView(View(this).apply {
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        setColor(color)
-                        cornerRadius = dp(style.radius.toInt().coerceAtMost(10)).toFloat()
-                    }
-                }, LinearLayout.LayoutParams(dp(42), dp(8)).apply { rightMargin = dp(6) })
-            }
-            card.addView(sample)
-            card.setOnClickListener {
-                if (current.id != style.id) {
-                    ThemeStore.select(this, style)
-                    recreate()
-                }
-            }
-            com.songshu.sstv.ui.Motion.interactive(card)
-            box.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
-        }
-        findViewById<SwitchCompat>(R.id.swReduceMotion).apply {
-            isChecked = ThemeStore.reducedMotion(this@SettingsActivity)
-            setOnCheckedChangeListener { _, checked -> ThemeStore.setReducedMotion(this@SettingsActivity, checked) }
-        }
-    }
-
-    private fun dp(v: Int) = (v * d).toInt()
 }

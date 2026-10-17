@@ -1,349 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@drawable/bg_page"
-    android:fitsSystemWindows="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingLeft="8dp"
-        android:paddingRight="12dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="6dp">
-
-        <TextView
-            android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingLeft="12dp"
-            android:paddingRight="12dp"
-            android:text="返回"
-            android:textColor="?attr/appTextMuted"
-            android:textSize="14sp" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginLeft="6dp"
-            android:text="@string/settings"
-            android:textColor="?attr/appText"
-            android:textSize="17sp"
-            android:textStyle="bold" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/bg_page" android:fitsSystemWindows="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="56dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingHorizontal="8dp">
+        <TextView android:id="@+id/btnBack" android:layout_width="56dp" android:layout_height="48dp" android:text="返回" android:textSize="14sp" android:textColor="?attr/appTextMuted" android:gravity="center" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="8dp" android:text="设置" android:textSize="20sp" android:textStyle="bold" android:textColor="?attr/appText" />
     </LinearLayout>
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:scrollbars="none">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingBottom="28dp">
-
-            <androidx.appcompat.widget.SwitchCompat android:id="@+id/swRestorePlayback"
-                android:layout_width="match_parent" android:layout_height="52dp"
-                android:layout_marginHorizontal="18dp" android:text="播放页保留上次内容"
-                android:textColor="?attr/appText" android:textSize="14sp" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_margin="18dp" android:text="外观与动效" android:textSize="20sp"
-                android:textStyle="bold" android:textColor="?attr/appText" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginHorizontal="18dp" android:layout_marginBottom="16dp"
-                android:text="选一种心情，开启今天的放映。主题会应用到所有浏览页面。"
-                android:textSize="12sp" android:textColor="?attr/appTextMuted" />
-            <LinearLayout android:id="@+id/themeOptions" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginHorizontal="18dp"
-                android:orientation="vertical" />
-            <androidx.appcompat.widget.SwitchCompat android:id="@+id/swReduceMotion"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginHorizontal="18dp" android:minHeight="48dp"
-                android:text="减少动画" android:textSize="14sp" android:textColor="?attr/appText" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginHorizontal="18dp" android:layout_marginBottom="22dp"
-                android:text="关闭页面与封面渐入；也会遵循系统的动画设置。"
-                android:textSize="12sp" android:textColor="?attr/appTextMuted" />
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginTop="10dp"
-                android:text="片源"
-                android:textColor="?attr/appText"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginRight="18dp"
-                android:layout_marginTop="4dp"
-                android:text="松鼠TV 只负责播放，不提供任何内容。下面每个源都是独立的影视接口，挂了就换一个。首页可以按大类、类型·地区、年份逐层挑片，搜索会把所有片源一起搜。"
-                android:textColor="?attr/appTextMuted"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/sourceCount"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginRight="18dp"
-                android:layout_marginTop="10dp"
-                android:textColor="?attr/appTextMuted"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:id="@+id/sourceBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:orientation="vertical" />
-
-            <TextView
-                android:id="@+id/btnAddSource"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_btn_ghost"
-                android:gravity="center"
-                android:text="+ 手动添加片源"
-                android:textColor="?attr/appText"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/btnImportTvbox"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/bg_btn_ghost"
-                android:gravity="center"
-                android:text="从 TVBox 配置链接导入（自动挑出可直接用的接口）"
-                android:textColor="?attr/appText"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/btnRestore"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/bg_btn_ghost"
-                android:gravity="center"
-                android:text="恢复出厂预置片源"
-                android:textColor="?attr/appText"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/btnTestAll"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/bg_btn_ghost"
-                android:gravity="center"
-                android:text="一键检测全部片源是否可用"
-                android:textColor="?attr/appText"
-                android:textSize="14sp" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="22dp"
-                android:background="?attr/appDivider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginTop="16dp"
-                android:text="内容过滤"
-                android:textColor="?attr/appText"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingLeft="18dp"
-                android:paddingRight="18dp"
-                android:paddingTop="10dp">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="过滤成人/福利分类"
-                        android:textColor="?attr/appText"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="默认开启。关掉后会显示源里的「理论片」等分类"
-                        android:textColor="?attr/appTextMuted"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/swFilterAdult"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+    <ScrollView android:id="@+id/settingsScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:scrollbars="none">
+        <LinearLayout android:id="@+id/settingsContent" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingBottom="24dp">
+            <TextView style="@style/SettingsSection" android:text="播放" />
+            <LinearLayout style="@style/SettingsCard">
+                <androidx.appcompat.widget.SwitchCompat android:id="@+id/swRestorePlayback" style="@style/SettingsSwitch" android:text="保留上次播放内容" />
+                <View style="@style/SettingsDivider" />
+                <androidx.appcompat.widget.SwitchCompat android:id="@+id/swAutoCache" style="@style/SettingsSwitch" android:text="边看边缓存" />
             </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingLeft="18dp"
-                android:paddingRight="18dp"
-                android:paddingTop="14dp">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="边看边缓存"
-                        android:textColor="?attr/appText"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="播过的片段存到本地，断网也能接着看"
-                        android:textColor="?attr/appTextMuted"
-                        android:textSize="11sp" />
+            <TextView style="@style/SettingsSection" android:text="外观" />
+            <LinearLayout style="@style/SettingsCard">
+                <LinearLayout android:id="@+id/btnTheme" style="@style/SettingsRow">
+                    <TextView style="@style/SettingsLabel" android:text="主题风格" />
+                    <TextView android:id="@+id/themeValue" style="@style/SettingsValue" />
+                    <TextView style="@style/SettingsChevron" />
                 </LinearLayout>
-
-                <androidx.appcompat.widget.SwitchCompat
-                    android:id="@+id/swAutoCache"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+                <View style="@style/SettingsDivider" />
+                <androidx.appcompat.widget.SwitchCompat android:id="@+id/swReduceMotion" style="@style/SettingsSwitch" android:text="减少动画" />
             </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="20dp"
-                android:background="?attr/appDivider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginTop="16dp"
-                android:text="@string/overlay_section"
-                android:textColor="?attr/appText"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginRight="18dp"
-                android:layout_marginTop="4dp"
-                android:lineSpacingExtra="2dp"
-                android:text="@string/overlay_section_desc"
-                android:textColor="?attr/appTextMuted"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/btnOverlay"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_btn_ghost"
-                android:gravity="center"
-                android:text="@string/overlay_off"
-                android:textColor="?attr/appText"
-                android:textSize="14sp" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="20dp"
-                android:background="?attr/appDivider" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginTop="16dp"
-                android:text="存储"
-                android:textColor="?attr/appText"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/cacheInfo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginRight="18dp"
-                android:layout_marginTop="8dp"
-                android:textColor="?attr/appTextMuted"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/btnClearCache"
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_btn_ghost"
-                android:gravity="center"
-                android:text="清空在线缓存"
-                android:textColor="?attr/appText"
-                android:textSize="14sp" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="20dp"
-                android:background="?attr/appDivider" />
-
-            <TextView
-                android:id="@+id/about"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginLeft="18dp"
-                android:layout_marginRight="18dp"
-                android:layout_marginTop="16dp"
-                android:lineSpacingExtra="4dp"
-                android:textColor="?attr/appTextMuted"
-                android:textSize="12sp" />
+            <TextView style="@style/SettingsSection" android:text="片源与内容" />
+            <LinearLayout style="@style/SettingsCard">
+                <LinearLayout android:id="@+id/btnManageSources" style="@style/SettingsRow">
+                    <TextView style="@style/SettingsLabel" android:text="片源管理" />
+                    <TextView android:id="@+id/sourceSummary" style="@style/SettingsValue" />
+                    <TextView style="@style/SettingsChevron" />
+                </LinearLayout>
+                <View style="@style/SettingsDivider" />
+                <androidx.appcompat.widget.SwitchCompat android:id="@+id/swFilterAdult" style="@style/SettingsSwitch" android:text="过滤成人分类" />
+            </LinearLayout>
+            <TextView style="@style/SettingsSection" android:text="缓存与存储" />
+            <LinearLayout style="@style/SettingsCard">
+                <LinearLayout android:id="@+id/btnOverlay" style="@style/SettingsRow">
+                    <TextView style="@style/SettingsLabel" android:text="缓存悬浮窗" />
+                    <TextView android:id="@+id/overlayValue" style="@style/SettingsValue" />
+                    <TextView style="@style/SettingsChevron" />
+                </LinearLayout>
+                <View style="@style/SettingsDivider" />
+                <LinearLayout android:id="@+id/btnClearCache" style="@style/SettingsRow">
+                    <TextView style="@style/SettingsLabel" android:text="清理在线播放缓存" />
+                    <TextView android:id="@+id/cacheInfo" style="@style/SettingsValue" />
+                    <TextView style="@style/SettingsChevron" />
+                </LinearLayout>
+                <View style="@style/SettingsDivider" />
+                <LinearLayout android:id="@+id/btnDownloads" style="@style/SettingsRow">
+                    <TextView style="@style/SettingsLabel" android:text="已缓存视频" />
+                    <TextView android:id="@+id/downloadSize" style="@style/SettingsValue" />
+                    <TextView style="@style/SettingsChevron" />
+                </LinearLayout>
+            </LinearLayout>
+            <TextView style="@style/SettingsSection" android:text="关于" />
+            <LinearLayout style="@style/SettingsCard">
+                <LinearLayout style="@style/SettingsRow">
+                    <TextView style="@style/SettingsLabel" android:text="当前版本" />
+                    <TextView android:id="@+id/about" style="@style/SettingsValue" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
