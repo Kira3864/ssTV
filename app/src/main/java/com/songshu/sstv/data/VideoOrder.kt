@@ -35,7 +35,7 @@ object VideoOrder {
         }.sortedWith(compareBy<List<Vod>> { relevance(base(it.first().name), q) }
             .thenBy { it.minOf { v -> release(v) } }.thenBy { natural(base(it.first().name)) })
         val result = groups.flatMap { values ->
-            if (values.any { seasonNumber(it.name) != null }) values.sortedWith(compareBy<Vod> { seasonNumber(it.name) ?: 0 }.thenBy { release(it) }.thenBy { natural(it.name) }.thenBy { it.id })
+            if (values.any { seasonNumber(it.name) != null }) values.sortedWith(compareBy<Vod> { seasonNumber(it.name) ?: 0L }.thenBy { release(it) }.thenBy { natural(it.name) }.thenBy { it.id })
             else values.sortedWith(compareBy<Vod> { release(it) }.thenBy { natural(it.name) }.thenBy { it.id })
         }
         return if (descending) result.reversed() else result

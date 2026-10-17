@@ -6,6 +6,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VideoOrderTest {
+    @Test fun unnumberedTitleAndNumberedSeasonsUseTheSameNumericComparisonType() {
+        val items = listOf(Vod(name="绝命毒师第5季"),Vod(name="绝命毒师"),Vod(name="绝命毒师第一季"),Vod(name="绝命毒师第2季"))
+        val expected = listOf("绝命毒师","绝命毒师第一季","绝命毒师第2季","绝命毒师第5季")
+        assertEquals(expected,VideoOrder.sort(items,"绝命毒师").map { it.name })
+        assertEquals(expected.reversed(),VideoOrder.sort(items,"绝命毒师",true).map { it.name })
+        for(size in 1..items.size) assertEquals(size,VideoOrder.sort(items.take(size),"绝命毒师").size)
+    }
     @Test fun unnumberedSameNameVersionsDoNotBreakChronologicalOrderAcrossOtherTitles() {
         val movies = listOf(Vod(id="new", name="星际",year="2025"),Vod(id="old",name="星际",year="2020"),
             Vod(id="middle",name="星球",year="2023"),Vod(id="exact",name="星",year="2026"))

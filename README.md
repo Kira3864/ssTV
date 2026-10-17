@@ -6,7 +6,7 @@
 
 - 项目名：ssTV
 - 应用名：松鼠TV
-- 版本：1.0（versionCode 24）
+- 版本：1.0.1（versionCode 25）
 - 包名：`com.songshu.sstv`
 - 语言：Kotlin
 - 最低系统 API：26；编译和目标 API：34
