@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.media.AudioManager
 import android.os.Bundle
@@ -40,6 +39,7 @@ import com.songshu.sstv.cache.*
 import com.songshu.sstv.data.*
 import com.songshu.sstv.ui.CachePicker
 import com.songshu.sstv.ui.Dlg
+import com.songshu.sstv.ui.PlaybackSpeedSlider
 import com.songshu.sstv.cast.*
 import java.net.URL
 import java.util.concurrent.Executors
@@ -54,7 +54,7 @@ class PlayerActivity : ThemedActivity() {
     private lateinit var btnEp: TextView
     private lateinit var btnSpeed: TextView
     private lateinit var seek: SeekBar
-    private lateinit var speedScroll: HorizontalScrollView
+    private lateinit var speedSlider: PlaybackSpeedSlider
     private val eps = ArrayList<String>()
     private var index = 0
     private var vodName = ""
@@ -76,9 +76,7 @@ class PlayerActivity : ThemedActivity() {
     private val main = Handler(Looper.getMainLooper())
     private val audio by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     private val prefs by lazy { getSharedPreferences("sstv_player", MODE_PRIVATE) }
-    private val speeds = floatArrayOf(.5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f, 5f)
     private var speed = 1f
-    private var speedProgrammatic = false
     private var episodeDialog: Dialog? = null
     private var castDialog: Dialog? = null
     private var discovery: Future<*>? = null
@@ -103,7 +101,7 @@ class PlayerActivity : ThemedActivity() {
         seek = findViewById(R.id.playerSeek)
         btnEp = findViewById(R.id.btnEp)
         btnSpeed = findViewById(R.id.btnSpeed)
-        speedScroll = findViewById(R.id.speedScroll)
+        speedSlider = findViewById(R.id.speedSlider)
         speed = prefs.getFloat("speed", 1f).takeIf { it.isFinite() && it in .5f..5f } ?: 1f
         player.setPlaybackSpeed(speed)
         player.addListener(object : Player.Listener {
@@ -126,7 +124,7 @@ class PlayerActivity : ThemedActivity() {
             val panel = findViewById<View>(R.id.speedPanel)
             panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             showControls(true)
-            if (panel.visibility == View.VISIBLE) centerSpeed(speed)
+            if (panel.visibility == View.VISIBLE) speedSlider.setSpeed(speed)
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(bar: SeekBar) { scrubbing = true; main.removeCallbacks(hideControls) }
@@ -137,7 +135,9 @@ class PlayerActivity : ThemedActivity() {
                 seekTo(duration() * bar.progress / 1000); scrubbing = false; showControls(true)
             }
         })
-        buildSpeedPicker()
+        speedSlider.setSpeed(speed)
+        speedSlider.onSpeedSelected = { setSpeed(it) }
+        bindVideoGestures()
         if (savedInstanceState != null) intent = Intent(intent).putExtras(savedInstanceState).putExtra("startPaused", true)
         loadIntent(intent)
         applySystemBars()
@@ -274,7 +274,10 @@ class PlayerActivity : ThemedActivity() {
     private fun setLocked(value: Boolean) {
         locked = value
         if (value) { episodeDialog?.dismiss(); findViewById<View>(R.id.speedPanel).visibility = View.GONE }
-        gestureEligible = false
+        if (value) {
+            val cancel = MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+            detector.onTouchEvent(cancel); cancel.recycle()
+        }
         gestureMode = 0
         if (holdingSpeed) { player.setPlaybackSpeed(speed); holdingSpeed = false }
         findViewById<View>(R.id.hudBox).visibility = View.GONE
@@ -287,55 +290,9 @@ class PlayerActivity : ThemedActivity() {
     }
 
     private fun speedLabel(value: Float) = (if (value % 1f == 0f) value.toInt().toString() else value.toString()) + "×"
-    private fun buildSpeedPicker() {
-        val row = findViewById<LinearLayout>(R.id.speedOptions)
-        row.removeAllViews()
-        speeds.forEach { value ->
-            row.addView(TextView(this).apply {
-                text = speedLabel(value); textSize = 16f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
-                setOnClickListener { setSpeed(value); centerSpeed(value) }
-            }, LinearLayout.LayoutParams(dpWatch(60), -1))
-        }
-        speedScroll.setOnScrollChangeListener { _: View, _: Int, _: Int, _: Int, _: Int ->
-            if (!speedProgrammatic && findViewById<View>(R.id.speedPanel).visibility == View.VISIBLE) {
-                main.removeCallbacks(snapSpeed); main.postDelayed(snapSpeed, 160)
-            }
-        }
-        speedScroll.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
-            if (right - left != oldRight - oldLeft) positionSpeed(speed)
-        }
-        row.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
-            if (right - left != oldRight - oldLeft && speedScroll.width > 0) positionSpeed(speed)
-        }
-    }
-    private val snapSpeed = Runnable {
-        val nearest = (speedScroll.scrollX.toFloat() / dpWatch(60)).roundToInt().coerceIn(speeds.indices)
-        setSpeed(speeds[nearest]); centerSpeed(speeds[nearest])
-    }
-    private fun centerSpeed(value: Float) {
-        if (speedScroll.width > 0) positionSpeed(value) else speedScroll.post { positionSpeed(value) }
-    }
-    private fun positionSpeed(value: Float) {
-        val padding = ((speedScroll.width - dpWatch(60)) / 2).coerceAtLeast(0)
-        val row = findViewById<LinearLayout>(R.id.speedOptions)
-        if (row.paddingLeft != padding) row.setPadding(padding, 0, padding, 0)
-        val target = speeds.indices.minByOrNull { abs(speeds[it] - value) } ?: 2
-        speedProgrammatic = true
-        speedScroll.scrollTo(target * dpWatch(60), 0)
-        speedProgrammatic = false
-        tintSpeeds()
-    }
-    private fun tintSpeeds() {
-        val row = findViewById<LinearLayout>(R.id.speedOptions)
-        for (i in speeds.indices) (row.getChildAt(i) as TextView).apply {
-            val selected = abs(speeds[i] - speed) < .01f
-            setTextColor(if (selected) themeColor(R.attr.appOnAccent) else Color.WHITE)
-            if (selected) setBackgroundResource(R.drawable.bg_btn_primary) else setBackgroundColor(Color.TRANSPARENT)
-        }
-    }
     private fun setSpeed(value: Float) {
         speed = value; player.setPlaybackSpeed(value); prefs.edit().putFloat("speed", value).apply()
-        tintSpeeds(); updateControls()
+        updateControls()
     }
 
     private fun showEpisodes() {
@@ -624,6 +581,9 @@ class PlayerActivity : ThemedActivity() {
             height = if (full) -1 else (resources.configuration.screenWidthDp * resources.displayMetrics.density * 9 / 16).toInt()
         }
         findViewById<View>(R.id.playerNavigation).visibility = if (full) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.speedPanel).layoutParams = findViewById<View>(R.id.speedPanel).layoutParams.apply {
+            width = dpWatch((resources.configuration.screenWidthDp - 24).coerceIn(120, 304))
+        }
         findViewById<ImageButton>(R.id.btnFull).apply {
             setImageResource(if (full) R.drawable.ic_player_collapse else R.drawable.ic_player_fullscreen)
             contentDescription = if (full) "退出全屏" else "全屏"
@@ -647,8 +607,7 @@ class PlayerActivity : ThemedActivity() {
     @Suppress("DEPRECATION")
     override fun onBackPressed() { leaveFullscreenOrFinish() }
 
-    private var gestureEligible = false
-    private var lockTouchAllowed = false
+    private var dismissSpeedTouch = false
     private var downX = 0f
     private var downY = 0f
     private var downPosition = 0L
@@ -662,9 +621,7 @@ class PlayerActivity : ThemedActivity() {
             override fun onDown(event: MotionEvent) = true
             override fun onSingleTapConfirmed(event: MotionEvent): Boolean {
                 if (locked) return true
-                val panel = findViewById<View>(R.id.speedPanel)
-                if (panel.visibility == View.VISIBLE) { panel.visibility = View.GONE; showControls(true) }
-                else showControls(!controlsVisible)
+                findViewById<View>(R.id.videoGestures).performClick()
                 return true
             }
             override fun onDoubleTap(event: MotionEvent): Boolean { if (!locked) togglePlayPause(); return true }
@@ -675,13 +632,11 @@ class PlayerActivity : ThemedActivity() {
             }
             override fun onScroll(start: MotionEvent?, event: MotionEvent, dx: Float, dy: Float): Boolean {
                 if (locked) return true
-                val deltaX = event.rawX - downX; val deltaY = event.rawY - downY
-                val stage = findViewById<View>(R.id.videoStage)
-                val visibleBounds = Rect()
-                stage.getGlobalVisibleRect(visibleBounds)
+                val deltaX = event.x - downX; val deltaY = event.y - downY
+                val stage = findViewById<View>(R.id.videoGestures)
                 if (gestureMode == 0) {
                     gestureMode = if (abs(deltaX) > abs(deltaY)) 3 else if (isLandscape()) {
-                        if (downX < visibleBounds.exactCenterX()) 1 else 2
+                        if (downX < stage.width / 2f) 1 else 2
                     } else 0
                 }
                 if (holdingSpeed) { player.setPlaybackSpeed(speed); holdingSpeed = false }
@@ -702,33 +657,30 @@ class PlayerActivity : ThemedActivity() {
             }
         })
     }
-    private fun hit(view: View, event: MotionEvent): Boolean {
-        if (view.visibility != View.VISIBLE) return false
-        val bounds = Rect()
-        return view.getGlobalVisibleRect(bounds) && bounds.contains(event.rawX.toInt(), event.rawY.toInt())
-    }
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (locked) {
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                lockTouchAllowed = listOf(R.id.btnLock, R.id.btnPlayPause, R.id.btnFull)
-                    .any { hit(findViewById(it), event) }
-            }
-            val handled = if (lockTouchAllowed) super.dispatchTouchEvent(event) else true
-            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) lockTouchAllowed = false
-            return handled
+    // GestureDetector confirms taps through performClick; buttons use native hit testing above this view.
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun bindVideoGestures() {
+        findViewById<View>(R.id.videoGestures).apply {
+            setOnClickListener { if (!locked) showControls(!controlsVisible) }
+            setOnTouchListener { _, event -> handleVideoTouch(event) }
         }
+    }
+    private fun handleVideoTouch(event: MotionEvent): Boolean {
+        if (locked) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            gestureEligible = hit(findViewById(R.id.videoStage), event) &&
-                !hit(findViewById(R.id.topBar), event) && !hit(findViewById(R.id.bottomControls), event) &&
-                !hit(findViewById(R.id.btnLock), event) && !hit(findViewById(R.id.speedPanel), event)
-            if (!controlsVisible) gestureEligible = hit(findViewById(R.id.videoStage), event) && !hit(findViewById(R.id.btnLock), event)
-            downX = event.rawX; downY = event.rawY; downPosition = position(); gestureMode = 0
+            val panel = findViewById<View>(R.id.speedPanel)
+            dismissSpeedTouch = panel.visibility == View.VISIBLE
+            if (dismissSpeedTouch) { panel.visibility = View.GONE; showControls(true) }
+            downX = event.x; downY = event.y; downPosition = position(); gestureMode = 0
             downVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
             downBrightness = window.attributes.screenBrightness.takeIf { it >= 0 } ?: (runCatching {
                 Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
             }.getOrDefault(.5f))
         }
-        if (!gestureEligible) return super.dispatchTouchEvent(event)
+        if (dismissSpeedTouch) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) dismissSpeedTouch = false
+            return true
+        }
         detector.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             if (event.actionMasked == MotionEvent.ACTION_UP && gestureMode == 3) seekTo(seekPreview)
@@ -862,7 +814,7 @@ class PlayerActivity : ThemedActivity() {
         foreground = false; pausePlayback(); saveHis()
         episodeDialog?.dismiss(); castDialog?.dismiss()
         if (holdingSpeed) { player.setPlaybackSpeed(speed); holdingSpeed = false }
-        main.removeCallbacks(ticker); main.removeCallbacks(snapSpeed)
+        main.removeCallbacks(ticker)
         findViewById<View>(R.id.speedPanel).visibility = View.GONE
         super.onPause()
     }

@@ -6,7 +6,7 @@ import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.HorizontalScrollView
+import com.songshu.sstv.ui.PlaybackSpeedSlider
 import androidx.media3.exoplayer.ExoPlayer
 import com.songshu.sstv.data.HisItem
 import com.songshu.sstv.data.HistoryStore
@@ -105,12 +105,23 @@ class PlaybackInteractionTest {
             shadowOf(Looper.getMainLooper()).idle()
             layout(activity)
             shadowOf(Looper.getMainLooper()).idle()
-            val scroll = activity.findViewById<HorizontalScrollView>(R.id.speedScroll)
-            assertEquals(240, scroll.scrollX)
-            layout(activity)
-            val options = activity.findViewById<android.widget.LinearLayout>(R.id.speedOptions)
-            val normal = options.getChildAt(2)
-            assertEquals(scroll.width / 2, normal.left + normal.width / 2 - scroll.scrollX)
+            val slider = activity.findViewById<PlaybackSpeedSlider>(R.id.speedSlider)
+            assertEquals(1f, slider.selectedSpeed, .001f)
+            val bounds = android.graphics.Rect()
+            assertTrue(slider.getGlobalVisibleRect(bounds))
+            val now = android.os.SystemClock.uptimeMillis()
+            val endX = bounds.exactCenterX() - 96 * activity.resources.displayMetrics.density
+            fun event(action: Int, x: Float, time: Long) = MotionEvent.obtain(now, time, action, x + 28f, bounds.exactCenterY() + 56f, 0).apply { offsetLocation(-28f, -56f) }
+            val down = event(MotionEvent.ACTION_DOWN, bounds.exactCenterX(), now)
+            val move = event(MotionEvent.ACTION_MOVE, endX, now + 200)
+            val up = event(MotionEvent.ACTION_UP, endX, now + 600)
+            activity.dispatchTouchEvent(down); activity.dispatchTouchEvent(move)
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(400))
+            assertEquals("Dragging must not commit or snap while the finger is held", 1f, slider.selectedSpeed, .001f)
+            activity.dispatchTouchEvent(up)
+            down.recycle(); move.recycle(); up.recycle()
+            assertEquals(1.5f, slider.selectedSpeed, .001f)
+            assertEquals(1.5f, player(activity).playbackParameters.speed, .001f)
             activity.findViewById<View>(R.id.btnEp).performClick()
             assertTrue(ShadowDialog.getLatestDialog().isShowing)
             ShadowDialog.getLatestDialog().dismiss()
@@ -119,17 +130,35 @@ class PlaybackInteractionTest {
         } finally { controller.pause().stop().destroy() }
     }
 
-    private fun tap(activity: PlayerActivity, target: View) {
+    private fun tap(activity: PlayerActivity, target: View, screenOffsetX: Float = 0f, screenOffsetY: Float = 0f) {
         val bounds = android.graphics.Rect()
         assertTrue("Target must be visible: ${target.contentDescription}", target.getGlobalVisibleRect(bounds))
         val now = android.os.SystemClock.uptimeMillis()
-        val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, bounds.exactCenterX(), bounds.exactCenterY(), 0)
-        val up = MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, bounds.exactCenterX(), bounds.exactCenterY(), 0)
+        val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, bounds.exactCenterX() + screenOffsetX, bounds.exactCenterY() + screenOffsetY, 0)
+        val up = MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, bounds.exactCenterX() + screenOffsetX, bounds.exactCenterY() + screenOffsetY, 0)
+        down.offsetLocation(-screenOffsetX, -screenOffsetY)
+        up.offsetLocation(-screenOffsetX, -screenOffsetY)
         activity.dispatchTouchEvent(down); activity.dispatchTouchEvent(up)
         down.recycle(); up.recycle()
         shadowOf(Looper.getMainLooper()).idle()
         val landscape = activity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         layout(activity, if (landscape) 1702 else 786, if (landscape) 786 else 1702)
+    }
+
+    @Test
+    @Config(qualifiers = "zh-rCN-w851dp-h393dp-land-xhdpi")
+    fun lockButtonStillWorksWhenFullscreenWindowHasAScreenOffset() {
+        val controller = Robolectric.buildActivity(PlayerActivity::class.java, media()).setup()
+        try {
+            val activity = controller.get(); layout(activity, 1702, 786)
+            val lock = activity.findViewById<View>(R.id.btnLock)
+            tap(activity, lock, 82f, 28f)
+            assertEquals("解锁屏幕", lock.contentDescription)
+            tap(activity, activity.findViewById(R.id.btnPlayPause), 82f, 28f)
+            assertTrue(player(activity).playWhenReady)
+            tap(activity, lock, 82f, 28f)
+            assertEquals("锁定屏幕", lock.contentDescription)
+        } finally { controller.pause().stop().destroy() }
     }
 
     @Test
@@ -231,8 +260,6 @@ class PlaybackInteractionTest {
                 val move = MotionEvent.obtain(now, now + 80, MotionEvent.ACTION_MOVE, x, endY, 0)
                 val up = MotionEvent.obtain(now, now + 100, MotionEvent.ACTION_UP, x, endY, 0)
                 activity.dispatchTouchEvent(down)
-                val eligible = PlayerActivity::class.java.getDeclaredField("gestureEligible").apply { isAccessible = true }.getBoolean(activity)
-                assertTrue("Touch must reach the video: bounds=$bounds x=$x y=$startY", eligible)
                 activity.dispatchTouchEvent(move)
                 activity.dispatchTouchEvent(up)
                 down.recycle(); move.recycle(); up.recycle()

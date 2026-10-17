@@ -28,7 +28,7 @@ object Motion {
     }
 
     fun bind(v: View) {
-        if (v.isClickable) interactive(v)
+        if (v.isClickable && v.id != R.id.videoGestures && v !is PlaybackSpeedSlider) interactive(v)
         if (v is ViewGroup) for (i in 0 until v.childCount) bind(v.getChildAt(i))
     }
 }

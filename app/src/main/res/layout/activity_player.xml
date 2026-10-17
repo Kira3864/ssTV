@@ -1,6 +1,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="?attr/appBg">
   <FrameLayout android:id="@+id/videoStage" android:layout_width="match_parent" android:layout_height="220dp" android:background="#000000">
     <androidx.media3.ui.PlayerView android:id="@+id/player" android:layout_width="match_parent" android:layout_height="match_parent" app:use_controller="false" app:resize_mode="fit" app:show_buffering="when_playing" />
+    <View android:id="@+id/videoGestures" android:layout_width="match_parent" android:layout_height="match_parent" android:clickable="true" android:focusable="false" android:importantForAccessibility="no" />
     <FrameLayout android:id="@+id/videoControls" android:layout_width="match_parent" android:layout_height="match_parent">
       <LinearLayout android:id="@+id/topBar" android:layout_width="match_parent" android:layout_height="48dp" android:layout_gravity="top" android:orientation="horizontal" android:gravity="center_vertical" android:paddingHorizontal="8dp" android:background="@drawable/bg_video_top">
         <ImageButton android:id="@+id/btnBack" android:layout_width="40dp" android:layout_height="40dp" android:padding="9dp" android:src="@drawable/ic_player_back" android:contentDescription="返回" android:background="@drawable/bg_video_button" app:tint="#FFFFFF" />
@@ -21,11 +22,9 @@
       </LinearLayout>
     </FrameLayout>
     <ImageButton android:id="@+id/btnLock" android:layout_width="48dp" android:layout_height="48dp" android:padding="12dp" android:src="@drawable/ic_player_unlock" android:contentDescription="锁定屏幕" android:background="@drawable/bg_video_button" app:tint="#FFFFFF" android:layout_gravity="center_vertical|start" android:layout_marginStart="12dp" />
-    <LinearLayout android:id="@+id/speedPanel" android:layout_width="280dp" android:layout_height="56dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginHorizontal="12dp" android:layout_marginBottom="72dp" android:orientation="vertical" android:background="@drawable/bg_video_sheet" android:visibility="gone">
-      <HorizontalScrollView android:id="@+id/speedScroll" android:layout_width="match_parent" android:layout_height="match_parent" android:scrollbars="none" android:overScrollMode="never" android:clipToPadding="false">
-        <LinearLayout android:id="@+id/speedOptions" android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" />
-      </HorizontalScrollView>
-    </LinearLayout>
+    <FrameLayout android:id="@+id/speedPanel" android:layout_width="304dp" android:layout_height="88dp" android:layout_gravity="bottom|center_horizontal" android:layout_marginHorizontal="12dp" android:layout_marginBottom="76dp" android:background="@drawable/bg_speed_ruler" android:elevation="6dp" android:visibility="gone">
+      <com.songshu.sstv.ui.PlaybackSpeedSlider android:id="@+id/speedSlider" android:layout_width="match_parent" android:layout_height="match_parent" />
+    </FrameLayout>
     <LinearLayout android:id="@+id/hudBox" android:layout_width="150dp" android:layout_height="wrap_content" android:layout_gravity="center" android:orientation="vertical" android:gravity="center" android:padding="16dp" android:background="@drawable/bg_video_sheet" android:visibility="gone">
       <TextView android:id="@+id/hudLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="12sp" android:gravity="center" />
       <TextView android:id="@+id/hudValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="21sp" android:gravity="center" android:layout_marginTop="6dp" />

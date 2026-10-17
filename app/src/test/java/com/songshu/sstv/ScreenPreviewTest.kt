@@ -64,11 +64,8 @@ class ScreenPreviewTest {
             view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
             view.layout(0, 0, width, height)
             if (name == "player-speed.png") {
-                val wheel = activity.findViewById<android.widget.HorizontalScrollView>(R.id.speedScroll)
-                val row = activity.findViewById<LinearLayout>(R.id.speedOptions)
-                val normal = row.getChildAt(2)
-                org.junit.Assert.assertEquals("wheel width=${wheel.width}, scroll=${wheel.scrollX}, padding=${row.paddingLeft}, child=${normal.left}",
-                    wheel.width / 2, normal.left + normal.width / 2 - wheel.scrollX)
+                val slider = activity.findViewById<com.songshu.sstv.ui.PlaybackSpeedSlider>(R.id.speedSlider)
+                org.junit.Assert.assertEquals(1f, slider.selectedSpeed, .001f)
             }
             view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
             view.layout(0, 0, width, height)
@@ -80,6 +77,9 @@ class ScreenPreviewTest {
         try {
             val root = activity.findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0)
             capture(root, 786, 1702, "player-portrait.png")
+            activity.findViewById<View>(R.id.btnSpeed).performClick()
+            capture(root, 786, 1702, "player-speed-portrait.png")
+            activity.findViewById<View>(R.id.btnSpeed).performClick()
             activity.findViewById<View>(R.id.btnEp).performClick()
             val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
             capture(dialog.findViewById(android.R.id.content), 746, 1100, "player-episodes.png")
@@ -90,6 +90,7 @@ class ScreenPreviewTest {
             capture(root, 1702, 786, "player-fullscreen.png")
             activity.findViewById<View>(R.id.btnSpeed).performClick()
             capture(root, 1702, 786, "player-speed.png")
+            capture(activity.findViewById(R.id.speedPanel), 608, 176, "player-speed-ruler.png")
             activity.findViewById<View>(R.id.btnLock).performClick()
             capture(root, 1702, 786, "player-locked.png")
         } finally { controller.pause().stop().destroy() }
