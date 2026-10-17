@@ -113,12 +113,12 @@ object VodApi {
      * 少数站只认 `ac=detail&wd=`（如魔都资源），所以两种都试一遍。
      * 站方主动关闭搜索时会回「暂不支持搜索」这种非 JSON —— 这时按「空结果」处理，不算失败。
      */
-    fun search(base: String, wd: String, sourceName: String): VodPage {
+    fun search(base: String, wd: String, sourceName: String, page: Int = 1): VodPage {
         val q = URLEncoder.encode(wd, "UTF-8")
         var netErr: Exception? = null
         for (ac in listOf("videolist", "detail")) {
             val body = try {
-                get("$base?ac=$ac&wd=$q")
+                get("$base?ac=$ac&wd=$q&pg=$page")
             } catch (e: Exception) {
                 netErr = e
                 continue
@@ -163,7 +163,10 @@ object VodApi {
         content = Mc.stripHtml(o.optString("vod_content")),
         lines = Mc.parseLines(o.optString("vod_play_from"), o.optString("vod_play_url")),
         sourceApi = base,
-        sourceName = srcName
+        sourceName = srcName,
+        released = o.optString("vod_pubdate").ifBlank { o.optString("vod_year") },
+        updated = o.optString("vod_time"),
+        heat = o.optLong("vod_hits_week").takeIf { it > 0 } ?: o.optLong("vod_hits_day").takeIf { it > 0 } ?: o.optLong("vod_hits")
     )
 
     /** 封面图常是相对路径，补成绝对地址 */

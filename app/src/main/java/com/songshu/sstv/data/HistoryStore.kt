@@ -81,7 +81,7 @@ object HistoryStore {
     /** 记一笔（同一条地址只留最新的一次），返回落库后的记录 */
     fun put(c: Context, item: HisItem): HisItem {
         val l = list(c)
-        l.removeAll { it.key == item.key }
+        l.removeAll { it.key == item.key && it.api == item.api }
         l.add(0, item)
         while (l.size > MAX) l.removeAt(l.size - 1)
         save(c, l)
@@ -89,22 +89,30 @@ object HistoryStore {
     }
 
     /** 按播放地址找（播放页判断这一集看到哪儿了） */
-    fun byUrl(c: Context, url: String): HisItem? =
-        list(c).firstOrNull { it.url == url || it.key == url }
+    fun byUrl(c: Context, url: String, api: String? = null): HisItem? =
+        list(c).firstOrNull { (it.url == url || it.key == url) && (api == null || it.api == api || it.api.isBlank()) }
 
     /** 按影片名找最近一条（详情页「继续播放」用） */
-    fun lastOfTitle(c: Context, title: String): HisItem? {
+    fun lastOfTitle(c: Context, title: String, api: String? = null): HisItem? {
         val t = title.trim()
         if (t.isEmpty()) return null
-        return list(c).firstOrNull { it.title.trim() == t }
+        return list(c).firstOrNull { it.title.trim() == t && (api == null || it.api == api || it.api.isBlank()) }
     }
 
-    fun remove(c: Context, key: String) {
+    fun remove(c: Context, key: String, api: String? = null) {
         val l = list(c)
-        l.removeAll { it.key == key }
+        l.removeAll { it.key == key && (api == null || it.api == api) }
         save(c, l)
     }
 
+    @Synchronized fun removeMedia(c: Context, media: MediaRef) {
+        val urls = media.eps.map { it.substringAfter('\u0001') }.toSet()
+        save(c, list(c).filterNot { h ->
+            if (h.api.isNotBlank()) h.api.trimEnd('/') == media.api.trimEnd('/') &&
+                (if (h.vid.isNotBlank() && media.id.isNotBlank()) h.vid == media.id else h.title == media.title)
+            else h.url in urls
+        })
+    }
     fun clear(c: Context) {
         sp(c).edit().remove(K).apply()
     }

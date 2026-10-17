@@ -21,6 +21,24 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
 class DownloadRegressionTest {
+    @Test fun seriesFilesUseTheirOwnFolderAndRecordProviderEvenForOneSelectedEpisode() {
+        val app = RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("sstv",0).edit().clear().commit()
+        val server = MockWebServer(); server.start()
+        server.enqueue(MockResponse().setBody(Buffer().write(ByteArray(2048) { 1 })))
+        server.enqueue(MockResponse().setBody(Buffer().write(ByteArray(2048) { 2 })))
+        try {
+            val url = server.url("/episode.mp4").toString()
+            val file = Downloader.download(app,"凡人修仙传","第3集",url,api="https://provider-a",sourceName="片源甲",vid="123",series=true)!!
+            assertEquals("downloads",file.parentFile!!.parentFile!!.name)
+            assertEquals(file,Downloader.localFile(app,url,"https://provider-a"))
+            assertNull(Downloader.localFile(app,url,"https://provider-b"))
+            val movie = Downloader.download(app,"电影","正片",server.url("/movie.mp4").toString(),api="https://provider-b",sourceName="片源乙",vid="456")!!
+            assertEquals("downloads",movie.parentFile!!.name)
+            val cached = DlStore.list(app).first { it.url == url }
+            assertEquals("片源甲",cached.sourceName); assertTrue(cached.series); assertEquals("123",cached.vid)
+        } finally { server.shutdown() }
+    }
     @Test fun nestedHlsRelativeSegmentsAreDownloadedInPlaylistOrder() {
         val app = RuntimeEnvironment.getApplication()
         val server = MockWebServer()

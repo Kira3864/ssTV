@@ -30,7 +30,7 @@
                     <TextView style="@style/SettingsChevron" />
                 </LinearLayout>
                 <View style="@style/SettingsDivider" />
-                <androidx.appcompat.widget.SwitchCompat android:id="@+id/swFilterAdult" style="@style/SettingsSwitch" android:text="过滤成人分类" />
+                <androidx.appcompat.widget.SwitchCompat android:id="@+id/swFilterAdult" style="@style/SettingsSwitch" android:text="NSFW" />
             </LinearLayout>
             <TextView style="@style/SettingsSection" android:text="缓存与存储" />
             <LinearLayout style="@style/SettingsCard">

@@ -37,8 +37,10 @@ object Downloader {
      * 判据跟 download() 的落盘规则对齐：文件名 = md5(这一集的地址) + 扩展名。
      * 只认下完的正式文件，`.part` / `.segs` 这些中间产物不算（下到一半的别当已有）。
      */
-    fun localFile(ctx: Context, url: String): File? {
+    fun localFile(ctx: Context, url: String, api: String? = null): File? {
         if (url.isBlank()) return null
+        DlStore.list(ctx).firstOrNull { it.url == url && (api == null || it.api == api) && File(it.path).isFile }?.let { return File(it.path) }
+        if (api != null) return null
         val dir = File(ctx.filesDir, "downloads")
         if (!dir.isDirectory) return null
         val key = md5(url)
@@ -56,10 +58,12 @@ object Downloader {
         url: String,
         pic: String = "",
         flag: CancelFlag? = null,
+        api: String = "", sourceName: String = "", vid: String = "", series: Boolean = false,
         onProgress: (DlReport) -> Unit = {}
     ): File? {
-        val dir = File(ctx.filesDir, "downloads").apply { mkdirs() }
-        val key = md5(url)
+        val root = File(ctx.filesDir, "downloads")
+        val dir = (if (series) File(root, md5(api + "|" + vid.ifBlank { title })) else root).apply { mkdirs() }
+        val key = md5(if (api.isBlank()) url else api + "|" + url)
         // 资源站给的常是「播放页」，先解析成真正的 m3u8 / 直链
         val real = if (PlayResolver.isPage(url)) {
             runCatching { PlayResolver.resolve(url) }.getOrDefault(url)
@@ -71,7 +75,7 @@ object Downloader {
         }
         val target = File(dir, "$key.$ext")
         if (target.exists() && target.length() > 1024) {
-            DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic))
+            DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic, api, sourceName, vid, series))
             onProgress(DlReport(100, target.length(), target.length(), 0))
             return target
         }
@@ -104,7 +108,7 @@ object Downloader {
             val copied = runCatching { tmp.copyTo(target, overwrite = true); tmp.delete(); target }.getOrNull()
             if (copied == null) return null
         }
-        DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic))
+        DlStore.add(ctx, DlItem(url, title, sub, target.absolutePath, target.length(), System.currentTimeMillis(), pic, api, sourceName, vid, series))
         return target
     }
 

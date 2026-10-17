@@ -27,6 +27,8 @@ class VodAdapter(
     private val items get() = differ.currentList
     private var submitted = emptyList<Vod>()
     val dataCount get() = submitted.size
+    var listMode = false
+        set(value) { if (field != value) { field = value; notifyDataSetChanged() } }
 
     fun submit(list: List<Vod>, append: Boolean) {
         submitted = ((if (append) submitted else emptyList()) + list)
@@ -53,17 +55,18 @@ class VodAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_vod, parent, false)
+        val v = LayoutInflater.from(parent.context).inflate(if (viewType == 1) R.layout.item_vod_list else R.layout.item_vod, parent, false)
         return VH(v)
     }
 
     override fun getItemCount(): Int = items.size
+    override fun getItemViewType(position: Int) = if (listMode) 1 else 0
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
 
         val lp = holder.pic.layoutParams
-        if (lp is LinearLayout.LayoutParams && lp.height != picHeight) {
+        if (!listMode && lp is LinearLayout.LayoutParams && lp.height != picHeight) {
             lp.height = picHeight
             holder.pic.layoutParams = lp
         }
@@ -73,6 +76,7 @@ class VodAdapter(
         holder.name.text = item.name
         holder.remark.text = buildString {
             append(item.remark.ifBlank { item.typeName })
+            if (listMode && item.meta.isNotBlank()) append("\n${item.meta}")
             if (item.sourceName.isNotBlank()) {
                 if (isNotEmpty()) append("  ·  ")
                 append(item.sourceName)

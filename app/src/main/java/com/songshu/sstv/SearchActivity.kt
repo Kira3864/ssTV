@@ -38,6 +38,11 @@ class SearchActivity : ThemedActivity() {
         val pools = java.util.concurrent.CopyOnWriteArrayList<java.util.concurrent.ExecutorService>()
         fun cancel() { cancelled = true; pools.forEach { it.shutdownNow() } }
     }
+    private val display by lazy { com.songshu.sstv.ui.DisplayPrefs(this, "search", false) }
+    private var ranked = true
+    private var groups: List<SearchGroup> = emptyList()
+    private var rankIdentity = ""
+    private fun displayGroups(value: List<SearchGroup>) { groups = value; adapter.submit(value) }
     private var session: SearchSession? = null
     private var searchJob: java.util.concurrent.Future<*>? = null
 
@@ -77,12 +82,19 @@ class SearchActivity : ThemedActivity() {
                 true
             } else false
         }
-        input.requestFocus()
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+        input.clearFocus()
+        findViewById<View>(R.id.btnViewMode).setOnClickListener { display.menu(it) { adapter.listMode = !display.grid; applySpan() } }
+        findViewById<TextView>(R.id.btnSort).setOnClickListener {
+            adapter.descending = !adapter.descending
+            (it as TextView).text = if (adapter.descending) "倒序 ↓" else "正序 ↑"
+            adapter.submit(groups)
+        }
     }
 
     private fun applySpan() {
         val width = resources.configuration.screenWidthDp
-        val columns = maxOf(2, width / 112)
+        val columns = if (adapter.listMode) 1 else display.columns
         list.layoutManager = GridLayoutManager(this, columns).apply {
             spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
                 override fun getSpanSize(position: Int) = if (adapter.isHeader(position)) columns else 1
@@ -142,21 +154,28 @@ class SearchActivity : ThemedActivity() {
     private fun doSearch() {
         val wd = input.text.toString().trim()
         if (wd.isEmpty()) {
-            hint.text = "先输入片名"
-            hint.visibility = View.VISIBLE
+            showRanking()
             return
         }
         session?.cancel()
         searchJob?.cancel(true)
         val work = SearchSession()
         session = work
+        rankIdentity = "${SourceStore.current(this).api}|${SourceStore.nsfw(this)}"
+        ranked = false
+        adapter.ranked = false
+        adapter.query = wd
+        adapter.listMode = !display.grid
+        applySpan()
+        findViewById<View>(R.id.btnSort).visibility = View.VISIBLE
+        input.clearFocus()
         (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(input.windowToken, 0)
 
         tip.visibility = View.VISIBLE
         progress.visibility = View.VISIBLE
         hint.visibility = View.GONE
-        adapter.submit(emptyList())
+        displayGroups(emptyList())
 
 
         val all = SourceStore.sources(this)
@@ -234,26 +253,39 @@ class SearchActivity : ThemedActivity() {
                 pool.execute {
                     if (work.cancelled) return@execute
                     val started = System.nanoTime()
-                    val got = runCatching { VodApi.search(source.api, wd, source.name).list }
-                        .getOrDefault(emptyList())
-                    val elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started).coerceAtLeast(1)
-                    synchronized(work.lock) {
-                        if (work.cancelled || !accepting.get()) return@execute
-                        got.forEach lit@ { v ->
-                            if (filterAdult && SourceStore.isAdultCategory(v.typeName)) return@lit
-                            val key = source.api + "|" + v.id
-                            if (key.isNotEmpty() && work.seen.add(key)) work.results.add(v)
+                    var page = 1
+                    var pageCount = 1
+                    var latency = 1L
+                    do {
+                        if (work.cancelled || !accepting.get() || Thread.currentThread().isInterrupted) break
+                        val response = runCatching { VodApi.search(source.api, wd, source.name, page) }.getOrNull() ?: break
+                        if (page == 1) latency = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started).coerceAtLeast(1)
+                        pageCount = response.pageCount
+                        var added = 0
+                        synchronized(work.lock) {
+                            if (work.cancelled || !accepting.get()) return@execute
+                            response.list.forEach lit@ { v ->
+                                if (work.seen.add(source.api + "|" + v.id)) {
+                                    added++
+                                    if (!filterAdult || !SourceStore.isAdultCategory(v.typeName)) work.results.add(v)
+                                }
+                            }
+                            val own = work.results.filter { it.sourceApi == source.api }
+                            if (own.isNotEmpty()) work.groups[source.api] = SearchGroup(source,
+                                minOf(latency, work.groups[source.api]?.latencyMs ?: Long.MAX_VALUE), own)
                         }
-                        val own = work.results.filter { it.sourceApi == source.api }
-                        if (own.isNotEmpty()) work.groups[source.api] = SearchGroup(source,
-                            minOf(elapsed, work.groups[source.api]?.latencyMs ?: Long.MAX_VALUE), own)
-                    }
+                        ui {
+                            if (session === work && !work.cancelled) displayGroups(synchronized(work.lock) { work.groups.values.toList() })
+                        }
+                        if (added == 0) break
+                        page++
+                    } while (page <= pageCount)
                     val count = done.incrementAndGet()
                     ui {
                         if (session !== work || work.cancelled || !accepting.get()) return@ui
                         // Snapshot on the main thread so late UI posts cannot replace newer results.
                         val snapshot = synchronized(work.lock) { work.groups.values.toList() }
-                        adapter.submit(snapshot)
+                        displayGroups(snapshot)
                         tip.text = "$label · 已试 $count/${targets.size} 个源 · 已找到 ${snapshot.sumOf { it.items.size }} 个"
                     }
                 }
@@ -271,15 +303,68 @@ class SearchActivity : ThemedActivity() {
         }
         ui {
             if (session === work && !work.cancelled) {
-                adapter.submit(synchronized(work.lock) { work.groups.values.toList() })
+                displayGroups(synchronized(work.lock) { work.groups.values.toList() })
             }
         }
         return synchronized(work.lock) { work.results.size }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val identity = "${SourceStore.current(this).api}|${SourceStore.nsfw(this)}"
+        if (rankIdentity != identity) { if (ranked) showRanking() else doSearch() }
+    }
+
+    private fun showRanking() {
+        session?.cancel(); searchJob?.cancel(true)
+        val work = SearchSession(); session = work
+        ranked = true; adapter.ranked = true; adapter.listMode = true; applySpan()
+        val source = SourceStore.current(this)
+        rankIdentity = "${source.api}|${SourceStore.nsfw(this)}"
+        val filtered = SourceStore.filterAdult(this)
+        findViewById<View>(R.id.btnSort).visibility = View.GONE
+        tip.visibility = View.GONE; hint.visibility = View.GONE; progress.visibility = View.VISIBLE
+        displayGroups(emptyList())
+        searchJob = Bg.io.submit {
+            val result = runCatching {
+                val movies = linkedMapOf<String, Vod>()
+                val seen = hashSetOf<String>()
+                var page = 1
+                do {
+                    if (work.cancelled || Thread.currentThread().isInterrupted) throw InterruptedException()
+                    val response = VodApi.listByType(source.api, "", page, source.name)
+                    var added = 0
+                    response.list.forEach { movie ->
+                        if (seen.add(movie.id)) {
+                            added++
+                            if (!filtered || !SourceStore.isAdultCategory(movie.typeName)) movies[movie.id] = movie
+                        }
+                    }
+                    page++
+                    if (added == 0 || page > response.pageCount) break
+                } while (movies.size < 10)
+                movies.values.sortedWith(compareByDescending<Vod> { it.heat }.thenByDescending { it.updated }).take(10)
+            }
+            ui {
+                if (session !== work || work.cancelled) return@ui
+                progress.visibility = View.GONE
+                val movies = result.getOrDefault(emptyList())
+                displayGroups(listOf(SearchGroup(source, 0, movies, "最新热播 Top 10 · ${source.name}")))
+                hint.text = if (result.isFailure) "加载失败，点击重试" else "暂无影片"
+                hint.visibility = if (movies.isEmpty()) View.VISIBLE else View.GONE
+                hint.setOnClickListener { if (ranked) showRanking() else doSearch() }
+            }
+        }
     }
 
     override fun onDestroy() {
         session?.cancel()
         searchJob?.cancel(true)
         super.onDestroy()
+    }
+    override fun onPause() {
+        input.clearFocus()
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(input.windowToken, 0)
+        super.onPause()
     }
 }

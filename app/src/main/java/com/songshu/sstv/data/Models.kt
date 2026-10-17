@@ -20,7 +20,10 @@ data class Vod(
     val content: String = "",
     val lines: List<PlayLine> = emptyList(),
     val sourceApi: String = "",
-    val sourceName: String = ""
+    val sourceName: String = "",
+    val released: String = "",
+    val updated: String = "",
+    val heat: Long = 0
 ) {
     val meta: String
         get() = listOf(year, area, typeName).filter { it.isNotBlank() }.joinToString(" · ")

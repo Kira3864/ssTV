@@ -59,7 +59,7 @@ class SettingsLayoutRegressionTest {
         try {
             val activity = controller.get(); val root = activity.findViewById<View>(R.id.settingsContent)
             assertNull(activity.findViewById<View>(R.id.sourceList))
-            val labels = setOf("保留上次播放内容", "边看边缓存", "主题风格", "减少动画", "片源管理", "过滤成人分类", "缓存悬浮窗", "清理在线播放缓存", "已缓存视频", "当前版本")
+            val labels = setOf("保留上次播放内容", "边看边缓存", "主题风格", "减少动画", "片源管理", "NSFW", "缓存悬浮窗", "清理在线播放缓存", "已缓存视频", "当前版本")
             val titles = views(root).filterIsInstance<TextView>().filter { it.text.toString() in labels }
             assertEquals(labels.size, titles.size)
             titles.forEach { assertTrue("${it.text} should be bold", it.typeface.isBold) }

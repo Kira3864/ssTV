@@ -135,10 +135,12 @@ object SourceStore {
         sp(c).edit().putString(K_CUR, s.api).apply()
     }
 
-    fun filterAdult(c: Context): Boolean = sp(c).getBoolean(K_ADULT, true)
+    fun nsfw(c: Context): Boolean = sp(c).getBoolean("nsfw", !sp(c).getBoolean(K_ADULT, true))
+    fun setNsfw(c: Context, value: Boolean) { sp(c).edit().putBoolean("nsfw", value).putBoolean(K_ADULT, !value).apply() }
+    fun filterAdult(c: Context): Boolean = !nsfw(c)
 
     fun setFilterAdult(c: Context, v: Boolean) {
-        sp(c).edit().putBoolean(K_ADULT, v).apply()
+        setNsfw(c, !v)
     }
 
     fun autoCache(c: Context): Boolean = sp(c).getBoolean(K_AUTOCACHE, true)

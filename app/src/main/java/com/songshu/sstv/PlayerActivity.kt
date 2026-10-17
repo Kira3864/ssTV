@@ -118,6 +118,13 @@ class PlayerActivity : ThemedActivity() {
         findViewById<View>(R.id.btnCache).setOnClickListener { cacheCurrent() }
         findViewById<View>(R.id.btnCast).setOnClickListener { showCastPicker() }
         findViewById<View>(R.id.btnLock).setOnClickListener { setLocked(!locked) }
+        findViewById<View>(R.id.btnFavorite).setOnClickListener { if (eps.isNotEmpty()) com.songshu.sstv.ui.LibraryActions.favorite(this, mediaRef()) { updateFavorite() } }
+        findViewById<View>(R.id.btnLike).setOnClickListener {
+            if (eps.isNotEmpty()) { LibraryStore.like(this, mediaRef(), position()); showToast("已喜欢 ${fmtDur(position())}"); it.animate().scaleX(1.18f).scaleY(1.18f).setDuration(120).withEndAction { it.animate().scaleX(1f).scaleY(1f).setDuration(120).start() }.start() }
+        }
+        findViewById<View>(R.id.btnClearPlayback).setOnClickListener {
+            Dlg.confirm(this, "清空播放内容", "同时删除这部影片的相关播放历史？") { clearPlayback() }
+        }
         btnEp.setOnClickListener { showEpisodes() }
         btnSpeed.setOnClickListener {
             if (remote != null) { showToast("投屏倍速由电视控制"); return@setOnClickListener }
@@ -150,6 +157,8 @@ class PlayerActivity : ThemedActivity() {
         vid = next.getStringExtra("vid").orEmpty(); lineName = next.getStringExtra("line").orEmpty()
         index = next.getIntExtra("index", 0).coerceIn(0, (eps.size - 1).coerceAtLeast(0))
         wantSeek = next.getLongExtra("seek", 0L); firstPlay = true; watchVod = null
+        if (eps.isNotEmpty()) PlaybackPreferences.setCleared(this, false)
+        updateFavorite()
         bindWatchPage(); loadWatchInfo()
         if (eps.isNotEmpty()) play(index, false, !next.getBooleanExtra("startPaused", false))
     }
@@ -158,7 +167,7 @@ class PlayerActivity : ThemedActivity() {
         super.onNewIntent(next)
         if (next.getBooleanExtra("resumeExisting", false)) {
             pausePlayback()
-            if (eps.isEmpty() && PlaybackPreferences.restoreLast(this)) loadIntent(next)
+            if (eps.isEmpty() && PlaybackPreferences.restoreLast(this) && !PlaybackPreferences.cleared(this)) loadIntent(next)
             return
         }
         saveHis(); ++playRequest; ++sourceRequest
@@ -448,6 +457,21 @@ class PlayerActivity : ThemedActivity() {
     }
 
 
+    private fun mediaRef() = MediaRef(vid, vodName, pic, api, srcName, ArrayList(eps), index, lineName)
+    private fun updateFavorite() {
+        val selected = eps.isNotEmpty() && LibraryStore.favorites(this).any { it.media.key == mediaRef().key }
+        findViewById<ImageButton>(R.id.btnFavorite).apply { alpha = if (selected) 1f else .7f; contentDescription = if (selected) "已收藏" else "收藏"; setColorFilter(if (selected) 0xFFFFCC66.toInt() else Color.WHITE) }
+    }
+    private fun clearPlayback() {
+        val media = mediaRef()
+        ++playRequest; ++sourceRequest; pausePlayback(); disconnectCast(false)
+        player.stop(); player.clearMediaItems()
+        eps.clear(); resolved = false; resolvedUrl = ""; wantsPlayback = false; watchVod = null
+        vodName = ""; pic = ""; api = ""; vid = ""; srcName = ""; lineName = ""; index = 0; wantSeek = 0L
+        intent = Intent(this, PlayerActivity::class.java).putExtra("startPaused", true)
+        HistoryStore.removeMedia(this, media); PlaybackPreferences.setCleared(this, true)
+        bindWatchPage(); updateContentVisibility(); updateControls()
+    }
     private fun saveHis() {
         if (!::player.isInitialized) return
         runCatching {
@@ -472,8 +496,8 @@ class PlayerActivity : ThemedActivity() {
     }
 
     private fun seekTargetFor(url: String): Long {
-        if (firstPlay && wantSeek > 0) return wantSeek
-        val h = HistoryStore.byUrl(this, url) ?: return 0L
+        if (firstPlay && intent.hasExtra("seek")) return wantSeek.coerceAtLeast(0)
+        val h = HistoryStore.byUrl(this, url, api) ?: return 0L
         if (h.pos < 20_000) return 0L
         if (h.dur > 0 && h.pos >= h.dur - 15_000) return 0L
         return h.pos
@@ -534,8 +558,8 @@ class PlayerActivity : ThemedActivity() {
 
         val marks = Array(pairs.size) { i ->
             when {
-                DlHub.isDownloading(pairs[i].second) -> CachePicker.Mark.DOING
-                Downloader.localFile(this, pairs[i].second) != null -> CachePicker.Mark.DONE
+                DlHub.isDownloading(pairs[i].second, api) -> CachePicker.Mark.DOING
+                Downloader.localFile(this, pairs[i].second, api) != null -> CachePicker.Mark.DONE
                 else -> CachePicker.Mark.NONE
             }
         }
@@ -548,12 +572,12 @@ class PlayerActivity : ThemedActivity() {
 
     /** 真正开跑。正在下的剔掉 —— 两个任务写同一个 .part 会把文件搞坏 */
     private fun startCache(picked: List<Pair<String, String>>) {
-        val todo = picked.filter { !DlHub.isDownloading(it.second) }
+        val todo = picked.filter { !DlHub.isDownloading(it.second, api) }
         if (todo.isEmpty()) {
             showToast("这几集正在缓存中，去「我的缓存」看进度")
             return
         }
-        val task = DlHub.create(vodName, pic, todo)
+        val task = DlHub.create(vodName, pic, todo, api, srcName, vid, eps.size > 1)
         showToast(
             if (todo.size == 1) "开始缓存 ${todo[0].first}，进度在「我的缓存」里看"
             else "开始缓存 ${todo.size} 集，进度在「我的缓存」里看"
@@ -807,6 +831,7 @@ class PlayerActivity : ThemedActivity() {
     }
     override fun onResume() {
         super.onResume(); foreground = true
+        updateFavorite()
         if (wantsPlayback && resolved && remote == null) player.play()
         main.removeCallbacks(ticker); main.post(ticker); showControls(true)
     }

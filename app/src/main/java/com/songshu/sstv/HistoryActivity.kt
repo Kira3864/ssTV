@@ -92,7 +92,7 @@ class HistoryActivity : ThemedActivity() {
 
     private fun del(h: HisItem) {
         Dlg.confirm(this, "删掉这条记录", "删掉「${h.title} ${h.ep}」的播放记录？下载好的文件不会被删。") {
-            HistoryStore.remove(this, h.key)
+            HistoryStore.remove(this, h.key, h.api)
             refresh()
         }
     }

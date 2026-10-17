@@ -43,6 +43,10 @@ class DetailActivity : ThemedActivity() {
     private lateinit var btnDownload: TextView
     private lateinit var pickSource: TextView
 
+    private fun refreshFavorite() {
+        val current = vod ?: return
+        findViewById<TextView>(R.id.btnFavorite).text = if (com.songshu.sstv.data.LibraryStore.favorites(this).any { it.media.key == com.songshu.sstv.data.MediaRef.from(current).key }) "★" else "☆"
+    }
     private var vod: Vod? = null
     private var lineIndex = 0
     private var expanded = false
@@ -104,6 +108,7 @@ class DetailActivity : ThemedActivity() {
             plotToggle.text = if (expanded) "收起简介" else "展开简介"
         }
         btnPlay.setOnClickListener { play(continueIdx, continuePos) }
+        findViewById<View>(R.id.btnFavorite).setOnClickListener { vod?.let { v -> com.songshu.sstv.ui.LibraryActions.favorite(this, com.songshu.sstv.data.MediaRef.from(v, lineIndex)) { refreshFavorite() } } }
         btnDownload.setOnClickListener { pickCache() }
 
         load()
@@ -111,6 +116,7 @@ class DetailActivity : ThemedActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshFavorite()
         dlHandler.removeCallbacks(dlTicker)
         dlHandler.postDelayed(dlTicker, 800L)
     }
@@ -264,6 +270,7 @@ class DetailActivity : ThemedActivity() {
         plotToggle.visibility = if (v.content.length > 120) View.VISIBLE else View.GONE
 
         lineIndex = 0
+        refreshFavorite()
         buildFromRow(v)
         buildEpisodes(v)
         applyHistory(v)
@@ -277,7 +284,7 @@ class DetailActivity : ThemedActivity() {
         continueIdx = 0
         continuePos = 0L
         btnPlay.text = getString(R.string.play)
-        val h = HistoryStore.lastOfTitle(this, v.name) ?: return
+        val h = HistoryStore.lastOfTitle(this, v.name, v.sourceApi) ?: return
         val line = v.lines.getOrNull(lineIndex) ?: return
         var i = line.episodes.indexOfFirst { it.name == h.ep && it.url == h.url }
         if (i < 0) i = line.episodes.indexOfFirst { it.name == h.ep }
@@ -401,7 +408,7 @@ class DetailActivity : ThemedActivity() {
     }
 
     private fun downloadOne(v: Vod, epName: String, url: String) {
-        if (DlHub.isDownloading(url)) {
+        if (DlHub.isDownloading(url, v.sourceApi)) {
             Dlg.tip(this, "已经在缓存", "这一集正在缓存中，去「我的缓存」看进度。")
             return
         }
@@ -436,8 +443,8 @@ class DetailActivity : ThemedActivity() {
         val pairs = list.map { it.name to it.url }
         val marks = Array(pairs.size) { i ->
             when {
-                DlHub.isDownloading(pairs[i].second) -> CachePicker.Mark.DOING
-                Downloader.localFile(this, pairs[i].second) != null -> CachePicker.Mark.DONE
+                DlHub.isDownloading(pairs[i].second, v.sourceApi) -> CachePicker.Mark.DOING
+                Downloader.localFile(this, pairs[i].second, v.sourceApi) != null -> CachePicker.Mark.DONE
                 else -> CachePicker.Mark.NONE
             }
         }
@@ -451,12 +458,12 @@ class DetailActivity : ThemedActivity() {
 
     /** 真正开跑。挑进来的集里如果有的正在下，剔掉 —— 两个任务写同一个 .part 会把文件搞坏 */
     private fun startCache(v: Vod, picked: List<Pair<String, String>>) {
-        val todo = picked.filter { !DlHub.isDownloading(it.second) }
+        val todo = picked.filter { !DlHub.isDownloading(it.second, v.sourceApi) }
         if (todo.isEmpty()) {
             Dlg.tip(this, "已经在缓存了", "挑的这几集正在缓存中，去「我的缓存」看进度。")
             return
         }
-        val task = DlHub.create(v.name, v.pic, todo)
+        val task = DlHub.create(v.name, v.pic, todo, v.sourceApi, v.sourceName, v.id, (v.lines.getOrNull(lineIndex)?.episodes?.size ?: 0) > 1)
         Bg.dl.execute { DlRunner.run(this, task) }
 
         val skipped = picked.size - todo.size

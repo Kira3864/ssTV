@@ -30,6 +30,7 @@ class CacheActivity : ThemedActivity() {
     private lateinit var dlTitle: TextView
     private lateinit var dlList: LinearLayout
 
+    private val folderKey get() = intent.getStringExtra("folder")
     private val ad = DlAdapter(
         onPlay = { play(it) },
         onDel = { del(it) }
@@ -93,7 +94,7 @@ class CacheActivity : ThemedActivity() {
             .filter { it.state == DlState.OK && now - it.finishAt > 2000 }
             .forEach { DlHub.remove(it) }
 
-        val tasks = DlHub.list()
+        val tasks = if (folderKey == null) DlHub.list() else emptyList()
         if (tasks.isEmpty()) {
             dlList.removeAllViews()
             dlViews.clear()
@@ -201,48 +202,45 @@ class CacheActivity : ThemedActivity() {
     // ───────────────────────── 已缓存列表 ─────────────────────────
 
     private fun refreshDone() {
-        val items = DlStore.list(this).filter { File(it.path).exists() }
-        ad.submit(items)
+        val all = DlStore.list(this).filter { File(it.path).exists() }
+        val items = if (folderKey == null) all else all.filter { it.mediaKey == folderKey }.sortedBy { com.songshu.sstv.data.VideoOrder.natural(it.sub) }
+        findViewById<TextView>(R.id.cacheTitle).text = if (folderKey == null) getString(R.string.cache_title) else items.firstOrNull()?.title ?: "剧集缓存"
+        ad.submit(CacheGroups.rows(items, folderKey == null))
         summary.text = "共 ${items.size} 个 · 占用 ${fmtSize(items.sumOf { it.size })}"
         summary.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
-        if (items.isEmpty() && DlHub.list().isEmpty()) {
-            hint.text = "暂无缓存"
-            hint.visibility = View.VISIBLE
-        } else {
-            hint.visibility = View.GONE
-        }
+        hint.text = "暂无缓存"
+        hint.visibility = if (items.isEmpty() && (folderKey != null || DlHub.list().isEmpty())) View.VISIBLE else View.GONE
     }
 
-    private fun play(item: DlItem) {
-        val uri = Uri.fromFile(File(item.path)).toString()
-        val arr = arrayListOf(item.sub + "\u0001" + uri)
-        startActivity(
-            Intent(this, PlayerActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                .putExtra("title", item.title)
-                .putStringArrayListExtra("eps", arr)
-                .putExtra("index", 0)
-                .putExtra("pic", item.pic)
-        )
+    private fun play(entry: CacheEntry) {
+        val item = entry.items.first()
+        if (entry.folder) { startActivity(Intent(this, CacheActivity::class.java).putExtra("folder", item.mediaKey)); return }
+        val group = DlStore.list(this).filter { it.mediaKey == item.mediaKey && File(it.path).exists() }
+            .sortedBy { com.songshu.sstv.data.VideoOrder.natural(it.sub) }
+        val arr = group.map { it.sub + "\u0001" + Uri.fromFile(File(it.path)).toString() }
+        startActivity(com.songshu.sstv.data.MediaRef(item.vid, item.title, item.pic, item.api, item.sourceLabel,
+            arr, group.indexOfFirst { it.path == item.path }.coerceAtLeast(0), "离线缓存").playIntent(this))
     }
 
-    private fun del(item: DlItem) {
-        Dlg.confirm(this, "删除缓存", "删掉「${item.title} ${item.sub}」？删了就没了，要重新下载。") {
-            runCatching { File(item.path).delete() }
-            DlStore.remove(this, item.url)
+    private fun del(entry: CacheEntry) {
+        Dlg.confirm(this, "删除缓存", if (entry.folder) "删除「${entry.items.first().title}」的全部 ${entry.items.size} 集缓存？" else "删除此缓存视频？") {
+            entry.items.forEach { item ->
+                DlStore.remove(this, item.url, item.api)
+                if (DlStore.list(this).none { it.path == item.path }) runCatching { File(item.path).delete() }
+            }
             refresh()
         }
     }
 }
 
 class DlAdapter(
-    private val onPlay: (DlItem) -> Unit,
-    private val onDel: (DlItem) -> Unit
+    private val onPlay: (CacheEntry) -> Unit,
+    private val onDel: (CacheEntry) -> Unit
 ) : RecyclerView.Adapter<DlAdapter.VH>() {
 
-    private val data = ArrayList<DlItem>()
+    private val data = ArrayList<CacheEntry>()
 
-    fun submit(l: List<DlItem>) {
+    fun submit(l: List<CacheEntry>) {
         if (data == l) return
         data.clear()
         data.addAll(l)
@@ -262,12 +260,21 @@ class DlAdapter(
     override fun getItemCount(): Int = data.size
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val item = data[position]
+        val entry = data[position]
+        val item = entry.items.first()
         Img.round(holder.pic, holder.pic.resources.displayMetrics.density * 6f)
         Img.load(holder.pic, item.pic)
-        holder.name.text = item.title
-        holder.sub.text = "${item.sub}  ·  ${fmtSize(item.size)}  ·  ${fmtTime(item.time)}"
-        holder.itemView.setOnClickListener { onPlay(item) }
-        holder.btnDel.setOnClickListener { onDel(item) }
+        holder.name.text = if (entry.folder) "${item.title}  ›" else item.title
+        holder.sub.text = listOf(if (entry.folder) "${entry.items.size} 集" else item.sub, item.sourceLabel, fmtSize(entry.items.sumOf { it.size })).joinToString(" · ")
+        holder.itemView.setOnClickListener { onPlay(entry) }
+        holder.btnDel.setOnClickListener { onDel(entry) }
     }
+}
+
+data class CacheEntry(val items: List<DlItem>, val folder: Boolean)
+object CacheGroups {
+    fun rows(items: List<DlItem>, folders: Boolean): List<CacheEntry> = if (!folders) items.map { CacheEntry(listOf(it), false) }
+        else items.groupBy { it.mediaKey }.values.flatMap { group ->
+            if (group.any { it.series } || group.size > 1) listOf(CacheEntry(group, true)) else group.map { CacheEntry(listOf(it), false) }
+        }
 }

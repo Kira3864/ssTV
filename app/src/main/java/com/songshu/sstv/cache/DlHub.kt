@@ -30,7 +30,8 @@ class DlTask internal constructor(
     val title: String,
     val pic: String,
     val epCount: Int,
-    val eps: List<Pair<String, String>>
+    val eps: List<Pair<String, String>>,
+    val api: String = "", val sourceName: String = "", val vid: String = "", val series: Boolean = false
 ) {
 
     @Volatile var epName: String = eps.firstOrNull()?.first.orEmpty()
@@ -101,8 +102,8 @@ object DlHub {
     @Volatile
     var onTaskCreated: (() -> Unit)? = null
 
-    fun create(title: String, pic: String, eps: List<Pair<String, String>>): DlTask {
-        val t = DlTask(seq.getAndIncrement(), title, pic, eps.size.coerceAtLeast(1), eps)
+    fun create(title: String, pic: String, eps: List<Pair<String, String>>, api: String = "", sourceName: String = "", vid: String = "", series: Boolean = eps.size > 1): DlTask {
+        val t = DlTask(seq.getAndIncrement(), title, pic, eps.size.coerceAtLeast(1), eps, api, sourceName, vid, series)
         synchronized(tasks) {
             tasks.add(0, t)
             val done = tasks.filter { it.state != DlState.RUN }
@@ -118,8 +119,8 @@ object DlHub {
     fun runningCount(): Int = list().count { it.isRunning }
 
     /** 这一集的地址此刻有没有任务在跑 —— 选缓存集数时用来标「缓存中」并防重复下 */
-    fun isDownloading(url: String): Boolean =
-        list().any { it.isRunning && it.eps.any { p -> p.second == url } }
+    fun isDownloading(url: String, api: String? = null): Boolean =
+        list().any { it.isRunning && (api == null || it.api == api) && it.eps.any { p -> p.second == url } }
 
     fun remove(t: DlTask) {
         tasks.remove(t)
@@ -147,7 +148,7 @@ object DlRunner {
             task.totalBytes = 0
             task.speed = 0
             val f = Downloader.download(
-                ctx, task.title, ep.first, ep.second, task.pic, task.flag
+                ctx, task.title, ep.first, ep.second, task.pic, task.flag, task.api, task.sourceName, task.vid, task.series
             ) { r ->
                 task.curPercent = r.percent
                 task.doneBytes = r.bytes

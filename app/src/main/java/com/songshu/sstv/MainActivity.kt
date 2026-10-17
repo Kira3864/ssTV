@@ -113,6 +113,7 @@ class MainActivity : ThemedActivity() {
             panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             updateFilterLabel()
         }
+        findViewById<View>(R.id.btnViewMode).setOnClickListener { display.menu(it) { applySpan() } }
         sourceLabel.setOnClickListener { pickSource() }
         hint.setOnClickListener { if (curRoot == null) loadClasses() else loadPage(1, false) }
         btnMore.setOnClickListener {
@@ -136,9 +137,11 @@ class MainActivity : ThemedActivity() {
         applySpan()
     }
 
+    private val display by lazy { com.songshu.sstv.ui.DisplayPrefs(this, "home") }
     private fun applySpan() {
         val w = resources.configuration.screenWidthDp
-        val span = maxOf(2, w / 112)
+        val span = if (display.grid) display.columns else 1
+        adapter.listMode = !display.grid
         grid.layoutManager = GridLayoutManager(this, span)
         val padDp = 20
         val itemDp = (w - padDp) / span

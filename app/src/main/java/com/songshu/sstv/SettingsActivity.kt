@@ -61,9 +61,9 @@ class SettingsActivity : ThemedActivity() {
 
         findViewById<View>(R.id.btnOverlay).setOnClickListener { DlOverlay.openPerm(this) }
 
-        swAdult.isChecked = SourceStore.filterAdult(this)
+        swAdult.isChecked = SourceStore.nsfw(this)
         swCache.isChecked = SourceStore.autoCache(this)
-        swAdult.setOnCheckedChangeListener { _, v -> SourceStore.setFilterAdult(this, v) }
+        swAdult.setOnCheckedChangeListener { _, v -> SourceStore.setNsfw(this, v) }
         swCache.setOnCheckedChangeListener { _, v -> SourceStore.setAutoCache(this, v) }
 
         @Suppress("DEPRECATION")
