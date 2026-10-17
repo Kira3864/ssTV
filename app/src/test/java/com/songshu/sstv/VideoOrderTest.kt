@@ -6,6 +6,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class VideoOrderTest {
+    @Test fun unnumberedSameNameVersionsDoNotBreakChronologicalOrderAcrossOtherTitles() {
+        val movies = listOf(Vod(id="new", name="星际",year="2025"),Vod(id="old",name="星际",year="2020"),
+            Vod(id="middle",name="星球",year="2023"),Vod(id="exact",name="星",year="2026"))
+        assertEquals(listOf("exact","old","middle","new"),VideoOrder.sort(movies,"星").map { it.id })
+    }
     @Test fun mixedChineseAndArabicSeasonsAreSortedNumericallyAndNewBatchesResort() {
         val seasons = listOf("第十一季","第2季","第二十季","第一季","第三季","第10季")
         val movies = seasons.mapIndexed { i, season -> Vod(id="$i",name="恶搞之家$season", year="${2025-i}") }

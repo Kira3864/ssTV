@@ -29,9 +29,12 @@ object VideoOrder {
     }
     fun sort(items: List<Vod>, query: String, descending: Boolean = false): List<Vod> {
         val q = base(query)
-        val groups = items.groupBy { base(it.name) }.entries.sortedWith(compareBy<Map.Entry<String,List<Vod>>> { relevance(it.key, q) }
-            .thenBy { it.value.minOfOrNull { v -> release(v) } ?: Long.MAX_VALUE }.thenBy { natural(it.key) })
-        val result = groups.flatMap { (_, values) ->
+        // Only numbered seasons stay together. Unnumbered titles share one chronological order.
+        val groups = items.groupBy { base(it.name) }.values.flatMap { values ->
+            if (values.any { seasonNumber(it.name) != null }) listOf(values) else values.map { listOf(it) }
+        }.sortedWith(compareBy<List<Vod>> { relevance(base(it.first().name), q) }
+            .thenBy { it.minOf { v -> release(v) } }.thenBy { natural(base(it.first().name)) })
+        val result = groups.flatMap { values ->
             if (values.any { seasonNumber(it.name) != null }) values.sortedWith(compareBy<Vod> { seasonNumber(it.name) ?: 0 }.thenBy { release(it) }.thenBy { natural(it.name) }.thenBy { it.id })
             else values.sortedWith(compareBy<Vod> { release(it) }.thenBy { natural(it.name) }.thenBy { it.id })
         }
