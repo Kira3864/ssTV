@@ -1,12 +1,6 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="512" android:viewportHeight="512">
-  <group android:pivotX="256" android:pivotY="256" android:scaleX="0.78" android:scaleY="0.78">
-    <path android:pathData="M272 369C366 394 438 330 437 245C437 175 400 114 367 91L368 119L339 104L348 134L318 123C344 164 354 203 342 238C332 267 303 280 274 274L251 320Z" android:fillColor="#F0CF9E" />
-    <path android:pathData="M170 188L176 123Q205 136 212 173L230 161L235 203Q253 220 243 244L222 266C232 289 270 291 287 318Q309 349 297 376L325 383Q335 398 313 401H205Q192 398 198 385L211 373C192 359 188 337 191 315L177 293L158 285Q147 285 149 273L159 260L142 250Q122 242 136 231Z" android:fillColor="#FFF5DF" />
-    <path android:pathData="M180 150L182 178L195 169Z" android:fillColor="#A45138" />
-    <path android:fillColor="#453025" android:pathData="M195.5,214 a6.5,6.5 0,1 0,13,0 a6.5,6.5 0,1 0,-13,0" />
-    <path android:pathData="M136 231L146 236L136 243Q126 238 136 231Z" android:fillColor="#453025" />
-    <path android:pathData="M213 274L196 290L175 285" android:fillColor="#00000000" android:strokeColor="#A45138" android:strokeWidth="9" android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M217 368C202 335 222 308 249 311" android:fillColor="#00000000" android:strokeColor="#DAB988" android:strokeWidth="9" android:strokeLineCap="round" />
-    <path android:pathData="M240 330Q240 324 246 328L269 342Q275 346 269 350L246 364Q240 368 240 362Z" android:fillColor="#A45138" />
-  </group>
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="24dp" android:insetTop="24dp"
+    android:insetRight="24dp" android:insetBottom="24dp">
+    <bitmap android:src="@drawable/ic_launcher_artwork"
+        android:gravity="fill" android:filter="true" />
+</inset>
