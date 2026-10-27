@@ -19,3 +19,10 @@ keystore/
 *.keystore
 .env
 .env.*
+
+# Windows toolchain and release artifacts
+desktop/.deps/
+desktop/out/
+desktop/dist/
+desktop/.qt/
+aqtinstall.log
