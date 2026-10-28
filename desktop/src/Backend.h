@@ -23,6 +23,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString dataDir READ dataDir CONSTANT)
     Q_PROPERTY(int page READ page NOTIFY videosChanged)
     Q_PROPERTY(int pages READ pages NOTIFY videosChanged)
+    Q_PROPERTY(QVariantList qualities READ qualities NOTIFY qualityChanged)
+    Q_PROPERTY(QVariantList alternatives READ alternatives NOTIFY alternativesChanged)
 public:
     explicit Backend(const QString &dataDir, QObject *parent = nullptr);
     ~Backend() override;
@@ -40,9 +42,14 @@ public:
     QString dataDir() const { return m_dataDir; }
     int page() const { return m_page; }
     int pages() const { return m_pages; }
+    QVariantList qualities() const { return m_qualities; }
+    QVariantList alternatives() const { return m_alternatives; }
+    Q_INVOKABLE void findAlternatives(int source);
+    Q_INVOKABLE void switchSource(const QVariantMap &video, double position);
     Q_INVOKABLE void browse(int source, const QString &keyword = {}, const QString &category = {}, int page = 1);
     Q_INVOKABLE void inspect(const QVariantMap &video);
     Q_INVOKABLE void playEpisode(int line, int episode, double start = -1);
+    Q_INVOKABLE void playCurrent(int line, int episode, double start) { m_detail = m_current; playEpisode(line, episode, start); }
     Q_INVOKABLE void openUrl(const QString &url);
     Q_INVOKABLE void remember(double position, double duration);
     Q_INVOKABLE void favorite(const QVariantMap &video);
@@ -65,10 +72,14 @@ signals:
     void sourcesChanged(); void videosChanged(); void categoriesChanged(); void libraryChanged();
     void downloadsChanged(); void detailChanged(); void currentChanged(); void busyChanged(); void statusChanged();
     void playRequested(const QString &url, double start);
+    void qualityChanged(); void alternativesChanged();
 private:
     using Reply = std::function<void(const QByteArray &, const QString &, const QUrl &)>;
     void get(const QUrl &url, Reply callback);
     void resolve(const QString &url, std::function<void(QString)> callback);
+    void discoverQualities(const QString &url, int generation);
+    QVariantList m_qualities, m_alternatives;
+    int m_alternativeGeneration = 0;
     void message(const QString &text);
     QVariant read(const QString &key, const QVariant &fallback) const;
     void write(const QString &key, const QVariant &value);

@@ -29,7 +29,7 @@ def smoke(folder):
     return {'exit':code, 'working_set_mib':round(memory/1048576,1)}
 
 portable = OUT / 'portable'
-with zipfile.ZipFile(ROOT / 'dist/ssTV-0.1.1-Windows-x64-Portable.zip') as z:
+with zipfile.ZipFile(ROOT / 'dist/ssTV-0.1.2-Windows-x64-Portable.zip') as z:
     assert all('/data/' not in '/'+n and not n.endswith('startup.log') for n in z.namelist())
     z.extractall(portable)
 report = {'portable':smoke(portable)}

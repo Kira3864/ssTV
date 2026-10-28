@@ -113,6 +113,39 @@ private slots:
         QTRY_VERIFY(player->duration() > 15);
         QVERIFY(QFileInfo::exists(backend->downloads().first().toMap().value("path").toString()));
     }
+    void centralPlaybackFeedback() {
+        window->setProperty("theme",0);
+        auto icon = window->findChild<QQuickItem *>("centerPlaybackIcon"); QVERIFY(icon);
+        player->pause(); QTRY_VERIFY(icon->isVisible()); QVERIFY(!icon->property("playing").toBool());
+        window->grabWindow().save(qEnvironmentVariable("SSTV_TEST_REPORT") + "/paused.png");
+        player->togglePause(); QTRY_VERIFY(icon->property("playing").toBool());
+        QTest::qWait(700); QVERIFY(!icon->isVisible());
+    }
+    void sourceSwitchAndQualityDiscovery() {
+        auto base = qEnvironmentVariable("SSTV_TEST_SERVER"); if (base.isEmpty()) QSKIP("No fixture server");
+        backend->inspect(backend->videos().first().toMap()); backend->playEpisode(0,0,4);
+        QTRY_VERIFY_WITH_TIMEOUT(player->loaded(),10000); QTRY_VERIFY(player->position() >= 4);
+        backend->findAlternatives(backend->sources().size()-1); QTRY_VERIFY(!backend->alternatives().isEmpty());
+        backend->switchSource(backend->alternatives().first().toMap(),4);
+        QTRY_VERIFY(player->position() >= 4);
+        backend->openUrl(base+"/master.m3u8");
+        QTRY_COMPARE_WITH_TIMEOUT(backend->qualities().size(),3,10000);
+        QCOMPARE(backend->qualities()[1].toMap().value("name").toString(),QString("360p"));
+        QTRY_VERIFY_WITH_TIMEOUT(player->loaded(),10000);
+        player->pause(); player->seek(5); QTRY_VERIFY(qAbs(player->position()-5)<.5);
+        player->selectQuality(1000000); QTRY_VERIFY_WITH_TIMEOUT(player->loaded(),10000);
+        QTRY_VERIFY(qAbs(player->position()-5)<.5); QVERIFY(player->paused());
+    }
+    void stalledNetworkResumesWithoutManualPause() {
+        auto base = qEnvironmentVariable("SSTV_TEST_SERVER"); if (base.isEmpty()) QSKIP("No fixture server");
+        backend->openUrl(base+"/stall/index.m3u8");
+        QTRY_VERIFY_WITH_TIMEOUT(player->buffering(),6000); QVERIFY(!player->paused());
+        QTRY_VERIFY_WITH_TIMEOUT(player->position()>1 && !player->buffering(),12000);
+        QTRY_VERIFY_WITH_TIMEOUT(player->buffering(),18000); QVERIFY(!player->paused());
+        window->grabWindow().save(qEnvironmentVariable("SSTV_TEST_REPORT") + "/buffering.png");
+        QTRY_VERIFY_WITH_TIMEOUT(player->position()>9 && !player->buffering(),25000);
+        QVERIFY(!player->paused()); QVERIFY(player->loadSpeed()>=0);
+    }
 };
 int runSelfTests(QObject *root, Backend *backend) {
     SelfTest tests; tests.window = qobject_cast<QQuickWindow *>(root);

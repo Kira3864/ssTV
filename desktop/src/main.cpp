@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     struct ResetLogger { ~ResetLogger() { qInstallMessageHandler(nullptr); } } resetLogger;
     qInstallMessageHandler(logMessage);
-    app.setOrganizationName("SquirrelTV"); app.setApplicationName("SquirrelTV"); app.setApplicationVersion("0.1.1");
+    app.setOrganizationName("SquirrelTV"); app.setApplicationName("SquirrelTV"); app.setApplicationVersion("0.1.2");
     app.setWindowIcon(QIcon(":/design/app-icon/sstv.png"));
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QQuickStyle::setStyle("Basic");

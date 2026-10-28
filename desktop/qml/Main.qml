@@ -29,6 +29,9 @@ ApplicationWindow {
     property bool full: visibility === Window.FullScreen
     property bool controlsShown: true
     property bool showHelp: false
+    property int selectedQuality: 0
+    property int playbackLine: 0
+    property bool centerFlash: false
     property int sourceIndex: Number(Backend.setting("source", 0))
     property string category: ""
     property string keyword: ""
@@ -61,8 +64,20 @@ ApplicationWindow {
     Connections {
         target: Backend
         function onPlayRequested(url, start) { page = "player"; detailDialog.close(); controlsShown = true; player.open(url, start) }
+        function onQualityChanged() { win.selectedQuality = 0 }
         function onStatusChanged() { toastTimer.restart() }
     }
+    Connections {
+        target: player
+        property bool lastPaused: true
+        function onStateChanged() {
+            if (lastPaused !== player.paused) {
+                lastPaused = player.paused
+                if (player.loaded && !player.paused) { win.centerFlash = true; centerTimer.restart() }
+            }
+        }
+    }
+    Timer { id: centerTimer; interval: 500; onTriggered: win.centerFlash = false }
     Timer { id: toastTimer; interval: 5000 }
     Timer { interval: 5000; running: player.loaded; repeat: true; onTriggered: win.savePosition() }
     Timer { id: hideTimer; interval: 2400; onTriggered: if (!player.paused && !seekBar.pressed && !player.holding && !playerMenu.opened) controlsShown = false }
@@ -107,7 +122,7 @@ ApplicationWindow {
                 Rectangle { Layout.fillWidth: true; height: 1; color: win.raised; Layout.bottomMargin: 8 }
                 PillButton { text: "＋  打开本地视频"; Layout.fillWidth: true; ink: win.ink; fill: win.raised; onClicked: fileDialog.open() }
                 PillButton { text: "⚙  偏好与片源"; Layout.fillWidth: true; ink: win.muted; fill: "transparent"; onClicked: settingsDrawer.open() }
-                Text { text: "WINDOWS  /  0.1.1 PREVIEW"; color: win.muted; font.pixelSize: 9; Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 8 }
+                Text { text: "WINDOWS  /  0.1.2 PREVIEW"; color: win.muted; font.pixelSize: 9; Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 8 }
             }
         }
         ColumnLayout {
@@ -117,6 +132,8 @@ ApplicationWindow {
                 RowLayout {
                     anchors { fill: parent; leftMargin: 32; rightMargin: 32 }  spacing: 12
                     Text { text: win.nav.find(n => n.key === win.page)?.name || "松鼠TV"; color: win.ink; font.pixelSize: 20; font.weight: Font.DemiBold }
+                    Text { visible: win.page === "player" && !!Backend.current.name; text: (Backend.current.name || "") + "  " + (Backend.current.episodeName || ""); color: win.ink; font.pixelSize: 14; elide: Text.ElideRight; Layout.maximumWidth: Math.max(120,win.width*0.22) }
+                    Text { visible: win.page === "player" && !!Backend.current.name; text: "[" + (Backend.current.source || "本地 / 直链") + "]"; color: win.muted; font.pixelSize: 11; elide: Text.ElideRight; Layout.maximumWidth: 120 }
                     Item { Layout.fillWidth: true }
                     TextField {
                         id: search; visible: win.page === "home"; Layout.preferredWidth: Math.min(300, win.width * .24); placeholderText: "搜索影片、剧集…"; color: win.ink; placeholderTextColor: win.muted
@@ -207,7 +224,23 @@ ApplicationWindow {
                             anchors { top: parent.top; horizontalCenter: parent.horizontalCenter; topMargin: 34 }  width: 190; height: 42; radius: 21; color: "#dcffb36b"; visible: player.holding
                             Text { anchors.centerIn: parent; text: win.holdSpeed + "× 倍速播放中"; color: "#20170e"; font.pixelSize: 14; font.bold: true }
                         }
-                        BusyIndicator { anchors.centerIn: parent; running: player.buffering; visible: running }
+                        Rectangle {
+                            anchors.centerIn: parent; width: bufferStatus.implicitWidth + 40; height: bufferStatus.implicitHeight + 30
+                            radius: 16; color: "#dc191b22"; border.width: 1; border.color: "#25ffffff"
+                            visible: player.buffering && !player.paused
+                        }
+                        Column {
+                            id: bufferStatus
+                            anchors.centerIn: parent; spacing: 10; visible: player.buffering && !player.paused
+                            BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; running: parent.visible }
+                            Text { text: "缓冲中… " + (player.loadSpeed >= 1048576 ? (player.loadSpeed/1048576).toFixed(1) + " MB/s" : Math.round(player.loadSpeed/1024) + " KB/s"); color: "white"; font.pixelSize: 14 }
+                            Text { text: "已缓冲 " + player.buffered.toFixed(1) + " 秒 · 网络恢复后自动继续"; color: "#b7bbc7"; font.pixelSize: 11; anchors.horizontalCenter: parent.horizontalCenter }
+                        }
+                        PlaybackIcon {
+                            objectName: "centerPlaybackIcon"; anchors.centerIn: parent; large: true; playing: !player.paused
+                            visible: player.loaded && !player.buffering && (player.paused || win.centerFlash)
+                            onClicked: player.togglePause()
+                        }
                         Rectangle {
                             anchors.centerIn: parent; width: Math.min(parent.width - 60, 500); height: errorText.implicitHeight + 40; color: "#df28221e"; radius: 12; visible: player.error.length > 0
                             Text { id: errorText; anchors { fill: parent; margins: 20 }  text: "播放失败\n" + player.error + "\n可尝试切换线路或软解码"; color: "#ffcfb2"; wrapMode: Text.WordWrap }
@@ -237,17 +270,21 @@ ApplicationWindow {
                                 }
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 12
-                                    PillButton { text: player.paused ? "▶" : "Ⅱ"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: player.togglePause() }
+                                    PlaybackIcon { playing: !player.paused; onClicked: player.togglePause() }
                                     PillButton { text: "下一集"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: win.nextEpisode() }
                                     Text { text: win.time(player.position) + " / " + win.time(player.duration); color: "#c0cbbf"; font.pixelSize: 11 }
                                     Item { Layout.fillWidth: true }
                                     PillButton { text: player.speed.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + "×"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: speedMenu.popup() }
                                     Menu { id: speedMenu; Repeater { model: [.5,.75,1,1.25,1.5,2,3]; delegate: MenuItem { required property var modelData; text: modelData + "×"; checkable: true; checked: Math.abs(player.speed-modelData)<.01; onTriggered: player.setSpeed(modelData) } } }
-                                    Text { text: "音量"; color: "#adb0bb"; font.pixelSize: 11 }
-                                    Slider { id: volumeBar; from: 0; to: 100; value: player.volume; implicitWidth: 75; onMoved: player.setVolume(value)
+                                    Text { visible: stage.width > 900; text: "音量"; color: "#adb0bb"; font.pixelSize: 11 }
+                                    Slider { id: volumeBar; visible: stage.width > 900; from: 0; to: 100; value: player.volume; implicitWidth: 75; onMoved: player.setVolume(value)
                                         background: Rectangle { x: volumeBar.leftPadding; y: (volumeBar.height-height)/2; width: volumeBar.availableWidth; height: 3; radius: 2; color: "#55ffffff"; Rectangle { width: parent.width*volumeBar.visualPosition; height: 3; color: "#e3e4eb"; radius: 2 } }
                                         handle: Rectangle { x: volumeBar.leftPadding+volumeBar.visualPosition*(volumeBar.availableWidth-width); y: (volumeBar.height-height)/2; width: 8; height: 8; radius: 4; color: "white" }
                                     }
+                                    PillButton { text: "选集"; compact: true; enabled: (Backend.current.lines || []).length > 0; ink: "white"; fill: "transparent"; onClicked: episodePopup.open() }
+                                    PillButton { text: "换源"; compact: true; enabled: !!Backend.current.api; ink: "white"; fill: "transparent"; onClicked: sourcePopup.open() }
+                                    PillButton { text: Backend.qualities.length <= 1 ? "原画" : win.selectedQuality === 0 ? "自动" : Backend.qualities[win.selectedQuality]?.name || "清晰度"; compact: true; ink: "white"; fill: "transparent"; onClicked: qualityMenu.popup() }
+                                    Menu { id: qualityMenu; Repeater { model: Backend.qualities; delegate: MenuItem { required property var modelData; required property int index; text: modelData.name; checkable: true; checked: win.selectedQuality === index; onTriggered: { win.selectedQuality = index; player.selectQuality(modelData.bitrate) } } } }
                                     PillButton { text: win.theater ? "退出剧场" : "剧场"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: win.theater = !win.theater }
                                     PillButton { text: win.full ? "退出全屏" : "全屏"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: win.toggleFull() }
                                 }
@@ -388,6 +425,24 @@ ApplicationWindow {
         onAccepted: Backend.openUrl(urlInput.text)
     }
     Dialog { id: deleteDialog; property int taskIndex: -1; anchors.centerIn: parent; modal: true; title: "删除下载及本地文件？"; standardButtons: Dialog.Yes | Dialog.No; onAccepted: Backend.removeDownload(taskIndex) }
+
+    Dialog {
+        id: episodePopup; anchors.centerIn: parent; width: Math.min(650, win.width-80); height: Math.min(450,win.height-100); modal: true; title: "选集 · " + (Backend.current.name || ""); standardButtons: Dialog.Close
+        onOpened: win.playbackLine = Number(Backend.current.line || 0)
+        contentItem: ScrollView { clip: true; ColumnLayout { width: episodePopup.availableWidth; spacing: 14
+            ComboBox { model: Backend.current.lines || []; textRole: "name"; currentIndex: win.playbackLine; onActivated: win.playbackLine = currentIndex }
+            Flow { Layout.fillWidth: true; spacing: 8; Repeater { model: (Backend.current.lines || [])[win.playbackLine]?.episodes || []; delegate: PillButton { required property var modelData; required property int index; text: modelData.name; ink: win.ink; fill: win.raised; primary: win.playbackLine === Number(Backend.current.line) && index === Number(Backend.current.episode); highlight: win.accent; onClicked: { win.savePosition(); Backend.playCurrent(win.playbackLine,index,0); episodePopup.close() } } } }
+        } }
+    }
+    Dialog {
+        id: sourcePopup; anchors.centerIn: parent; width: Math.min(650, win.width-80); height: Math.min(500,win.height-100); modal: true; title: "切换片源 · 保留当前进度"; standardButtons: Dialog.Close
+        contentItem: ColumnLayout { spacing: 14
+            Text { text: "当前影片线路"; color: win.muted }
+            Flow { Layout.fillWidth: true; spacing: 8; Repeater { model: Backend.current.lines || []; delegate: PillButton { required property var modelData; required property int index; text: modelData.name; ink: win.ink; fill: win.raised; onClicked: { Backend.playCurrent(index,Number(Backend.current.episode || 0),player.position); sourcePopup.close() } } } }
+            RowLayout { Layout.fillWidth: true; ComboBox { id: alternateSource; model: Backend.sources; textRole: "name"; Layout.fillWidth: true }  PillButton { text: "查找其他片源"; ink: win.ink; fill: win.raised; onClicked: Backend.findAlternatives(alternateSource.currentIndex) } }
+            ListView { Layout.fillWidth: true; Layout.fillHeight: true; clip: true; model: Backend.alternatives; spacing: 8; delegate: PillButton { required property var modelData; width: ListView.view.width; text: modelData.name + " · " + (modelData.year || "") + " [" + modelData.source + "]"; ink: win.ink; fill: win.raised; onClicked: { Backend.switchSource(modelData,player.position); sourcePopup.close() } } }
+        }
+    }
     FileDialog { id: fileDialog; title: "打开视频"; nameFilters: ["视频文件 (*.mp4 *.mkv *.webm *.avi *.mov *.ts *.m3u8 *.flv)", "所有文件 (*)"]; onAccepted: Backend.openUrl(selectedFile.toString()) }
     FileDialog { id: sourceFileDialog; title: "导入片源 JSON"; nameFilters: ["JSON (*.json)"]; onAccepted: Backend.importSources(selectedFile.toString()) }
     FileDialog { id: exportDialog; title: "导出资料"; fileMode: FileDialog.SaveFile; defaultSuffix: "json"; nameFilters: ["JSON (*.json)"]; onAccepted: Backend.exportLibrary(selectedFile.toString()) }

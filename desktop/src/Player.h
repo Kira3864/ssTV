@@ -21,6 +21,8 @@ class Player : public QQuickFramebufferObject {
     Q_PROPERTY(bool holding READ holding NOTIFY stateChanged)
     Q_PROPERTY(QString decoder READ decoder NOTIFY stateChanged)
     Q_PROPERTY(QString error READ error NOTIFY stateChanged)
+    Q_PROPERTY(double loadSpeed READ loadSpeed NOTIFY stateChanged)
+    Q_PROPERTY(double buffered READ buffered NOTIFY stateChanged)
 public:
     explicit Player(QQuickItem *parent = nullptr);
     ~Player() override;
@@ -36,6 +38,9 @@ public:
     double volume() const { return m_volume; }
     QString decoder() const { return m_decoder; }
     QString error() const { return m_error; }
+    double loadSpeed() const { return m_loadSpeed; }
+    double buffered() const { return m_buffered; }
+    Q_INVOKABLE void selectQuality(qint64 bitrate);
     Q_INVOKABLE void open(const QString &url, double start = 0);
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void pause();
@@ -63,4 +68,8 @@ private:
     bool m_paused = true, m_loaded = false, m_buffering = false, m_holding = false;
     double m_position = 0, m_duration = 0, m_speed = 1, m_volume = 80, m_savedSpeed = 1;
     QString m_decoder, m_error;
+    QString m_url;
+    double m_loadSpeed = 0, m_buffered = 0;
+    bool m_coreIdle = false, m_cachePaused = false, m_eof = false;
+    bool m_qualityReload = false;
 };

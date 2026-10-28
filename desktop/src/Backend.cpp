@@ -178,7 +178,7 @@ void Backend::playEpisode(int line, int episode, double start) {
     message("正在解析播放地址…");
     resolve(url, [this, generation, start](const QString &resolved) {
         if (generation != m_playGeneration) return;
-        m_current["resolved"] = resolved; emit currentChanged(); message("播放已就绪"); emit playRequested(resolved, start);
+        discoverQualities(resolved, generation); m_current["resolved"] = resolved; emit currentChanged(); message("播放已就绪"); emit playRequested(resolved, start);
     });
 }
 void Backend::openUrl(const QString &url) {
@@ -186,7 +186,7 @@ void Backend::openUrl(const QString &url) {
     ++m_playGeneration;
     m_current = {{"id", digest(url)}, {"name", u.isLocalFile() ? QFileInfo(u.toLocalFile()).fileName() : "网络视频"},
         {"url", u.toString()}, {"resolved", u.toString()}, {"episodeName", ""}};
-    emit currentChanged(); emit playRequested(u.toString(), 0);
+    discoverQualities(u.toString(), m_playGeneration); emit currentChanged(); emit playRequested(u.toString(), 0);
 }
 void Backend::remember(double position, double duration) {
     if (m_current.isEmpty() || duration <= 0) return;
@@ -214,7 +214,7 @@ void Backend::restore(const QVariantMap &entry) {
     if (entry.value("url").toString().isEmpty()) { inspect(entry); return; }
     m_current = entry; m_detail = entry; emit currentChanged(); emit detailChanged();
     const auto generation = ++m_playGeneration;
-    resolve(entry.value("url").toString(), [this, generation, entry](const QString &url) { if (generation == m_playGeneration) emit playRequested(url, entry.value("position").toDouble()); });
+    resolve(entry.value("url").toString(), [this, generation, entry](const QString &url) { if (generation == m_playGeneration) { discoverQualities(url, generation); emit playRequested(url, entry.value("position").toDouble()); } });
 }
 void Backend::addSource(const QString &name, const QString &api) {
     auto url = QUrl::fromUserInput(api.trimmed());
@@ -393,4 +393,61 @@ void Backend::playDownload(int index) {
     if (index < 0 || index >= m_tasks.size()) return;
     auto t = m_tasks[index]; if (t->data.value("state") != "已完成") return;
     openUrl(QUrl::fromLocalFile(t->data.value("path").toString()).toString());
+}
+void Backend::discoverQualities(const QString &url, int generation) {
+    m_qualities = {QVariantMap{{"name", "原画（片源未提供多档）"}, {"bitrate", 0}}}; emit qualityChanged();
+    if (!url.contains(".m3u8", Qt::CaseInsensitive)) return;
+    get(QUrl(url), [this, generation](const QByteArray &body, const QString &error, const QUrl &) {
+        if (generation != m_playGeneration || !error.isEmpty()) return;
+        QVariantList variants;
+        for (const auto &line : QString::fromUtf8(body).split('\n')) {
+            if (!line.startsWith("#EXT-X-STREAM-INF:")) continue;
+            auto bandwidth = QRegularExpression("(?:^|,)BANDWIDTH=([0-9]+)").match(line.mid(18));
+            auto resolution = QRegularExpression("RESOLUTION=([0-9]+)x([0-9]+)").match(line);
+            if (!bandwidth.hasMatch()) continue;
+            qint64 rate = bandwidth.captured(1).toLongLong();
+            QString label = resolution.hasMatch() ? resolution.captured(2) + "p" : QString::number(rate / 1000) + " kbps";
+            variants.append(QVariantMap{{"name", label}, {"bitrate", rate}});
+        }
+        if (!variants.isEmpty()) {
+            variants.prepend(QVariantMap{{"name", "自动（均衡）"}, {"bitrate", 2500000}});
+            m_qualities = variants; emit qualityChanged();
+        }
+    });
+}
+void Backend::findAlternatives(int source) {
+    const int generation = ++m_alternativeGeneration;
+    m_alternatives.clear(); emit alternativesChanged();
+    if (source < 0 || source >= m_sources.size() || m_current.isEmpty()) return;
+    const auto selected = m_sources[source].toMap(); const auto currentKey = keyOf(m_current);
+    QUrl url(selected.value("api").toString()); QUrlQuery query(url);
+    query.addQueryItem("ac", "detail"); query.addQueryItem("wd", m_current.value("name").toString()); url.setQuery(query);
+    message("正在查找此片源的同名影片…");
+    get(url, [this, generation, selected, currentKey](const QByteArray &body, const QString &error, const QUrl &) {
+        if (generation != m_alternativeGeneration || keyOf(m_current) != currentKey) return;
+        if (!error.isEmpty()) { message(error); return; }
+        auto list = QJsonDocument::fromJson(body).object().value("list").toArray();
+        for (auto v : list) m_alternatives.append(parseVideo(v.toObject(), selected));
+        emit alternativesChanged(); message(m_alternatives.isEmpty() ? "该片源没有找到匹配影片" : "请选择要切换的影片，确认片名与年份");
+    });
+}
+void Backend::switchSource(const QVariantMap &video, double position) {
+    const auto generation = ++m_alternativeGeneration;
+    const auto oldKey = keyOf(m_current);
+    const auto oldEpisode = m_current.value("episodeName").toString(); const int oldIndex = m_current.value("episode").toInt();
+    QUrl url(video.value("api").toString()); QUrlQuery query(url);
+    query.addQueryItem("ac", "detail"); query.addQueryItem("ids", video.value("id").toString()); url.setQuery(query);
+    get(url, [this, generation, video, position, oldKey, oldEpisode, oldIndex](const QByteArray &body, const QString &error, const QUrl &) {
+        if (generation != m_alternativeGeneration || keyOf(m_current) != oldKey) return;
+        if (!error.isEmpty()) { message(error); return; }
+        auto list = QJsonDocument::fromJson(body).object().value("list").toArray();
+        if (list.isEmpty()) { message("该片源暂无影片详情"); return; }
+        auto detail = parseVideo(list.first().toObject(), {{"api", video.value("api")}, {"name", video.value("source")}});
+        auto lines = detail.value("lines").toList();
+        if (lines.isEmpty()) { message("该片源没有可播放线路"); return; }
+        auto episodes = lines.first().toMap().value("episodes").toList();
+        int index = qBound(0, oldIndex, int(episodes.size())-1);
+        for (int i=0; i<episodes.size(); ++i) if (episodes[i].toMap().value("name").toString() == oldEpisode) { index = i; break; }
+        m_detail = detail; emit detailChanged(); playEpisode(0, index, position);
+    });
 }

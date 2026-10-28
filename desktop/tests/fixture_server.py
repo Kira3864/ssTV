@@ -13,6 +13,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         base = f"http://127.0.0.1:{self.server.server_port}"
+        if self.path.startswith('/master.m3u8'):
+            body = (f'#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=640x360\n{base}/hls/index.m3u8?q=360\n'
+                    f'#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720\n{base}/hls/index.m3u8?q=720\n').encode()
+            self.send_response(200); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+        if self.path.startswith('/stall/index.m3u8'):
+            body = (ROOT/'stallmedia/index.m3u8').read_bytes()
+            self.send_response(200); self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
+        if self.path.startswith('/stall/'):
+            # Deliberately exhaust the first segment, then recover the network.
+            if 'index6.ts' in self.path: time.sleep(10)
+            self.path = self.path.replace('/stall/','/stallmedia/')
+            super().do_GET(); return
         if self.path.startswith("/api"):
             body = json.dumps({"pagecount":1, "class":[{"type_id":1,"type_name":"测试视频"}], "list":[{
                 "vod_id": "test", "vod_name": "本地播放测试", "vod_play_from":"fixture",
@@ -23,10 +35,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif self.path == "/playback-test.mp4":
             data = (ROOT / "playback-test.mp4").read_bytes()
             offset = int(self.headers.get("Range", "bytes=0-").split("=")[1].split("-")[0])
-            partial = "Range" in self.headers and self.headers.get("If-Range") == '"fixture-v1"'
+            partial = "Range" in self.headers and self.headers.get("If-Range", '"fixture-v1"') == '"fixture-v1"'
             if not partial: offset = 0
             self.send_response(206 if partial else 200)
             self.send_header("ETag", '"fixture-v1"')
+            self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(data)-offset))
             if partial: self.send_header("Content-Range", f"bytes {offset}-{len(data)-1}/{len(data)}")
             self.end_headers()

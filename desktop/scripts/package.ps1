@@ -22,7 +22,7 @@ Copy-Item "$desktopRoot/README.md" "$stage/README.md"
 Copy-Item "$desktopRoot/packaging/licenses" "$stage/licenses" -Recurse
 Copy-Item $stage $portable -Recurse
 Set-Content "$portable/portable.txt" 'Store settings, history and downloads in ./data. Extract into a writable folder.' -Encoding utf8
-Compress-Archive -Path "$portable/*" -DestinationPath "$dist/ssTV-0.1.1-Windows-x64-Portable.zip" -Force
+Compress-Archive -Path "$portable/*" -DestinationPath "$dist/ssTV-0.1.2-Windows-x64-Portable.zip" -Force
 & $InnoCompiler "/DStageDir=$stage" "/DOutputDir=$dist" "$desktopRoot/packaging/setup.iss"
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
 Get-ChildItem $dist -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {

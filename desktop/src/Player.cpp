@@ -65,14 +65,17 @@ Player::Player(QQuickItem *parent) : QQuickFramebufferObject(parent), m_core(std
     if (!h) { m_error = QStringLiteral("播放器初始化失败"); return; }
     for (auto pair : {std::pair{"vo", "libmpv"}, {"hwdec", "auto-safe"}, {"terminal", "no"},
                       {"input-default-bindings", "no"}, {"input-vo-keyboard", "no"},
-                      {"cache", "yes"}, {"demuxer-max-bytes", "64MiB"}, {"demuxer-max-back-bytes", "16MiB"},
+                      {"cache", "yes"}, {"demuxer-max-bytes", "96MiB"}, {"demuxer-max-back-bytes", "8MiB"},
+                      {"demuxer-readahead-secs", "30"}, {"cache-pause", "yes"}, {"cache-pause-wait", "2.5"},
+                      {"cache-pause-initial", "yes"}, {"network-timeout", "15"}, {"hls-bitrate", "2500000"},
                       {"keep-open", "yes"}, {"idle", "yes"}})
         mpv_set_option_string(h, pair.first, pair.second);
     if (mpv_initialize(h) < 0) { m_error = QStringLiteral("播放器初始化失败"); return; }
     number("volume", 80);
-    for (const char *name : {"time-pos", "duration", "speed", "volume"})
+    for (const char *name : {"time-pos", "duration", "speed", "volume", "demuxer-cache-duration"})
         mpv_observe_property(h, 0, name, MPV_FORMAT_DOUBLE);
-    for (const char *name : {"pause", "paused-for-cache"}) mpv_observe_property(h, 0, name, MPV_FORMAT_FLAG);
+    for (const char *name : {"pause", "paused-for-cache", "core-idle", "eof-reached"}) mpv_observe_property(h, 0, name, MPV_FORMAT_FLAG);
+    mpv_observe_property(h, 0, "cache-speed", MPV_FORMAT_INT64);
     mpv_observe_property(h, 0, "hwdec-current", MPV_FORMAT_STRING);
     mpv_set_wakeup_callback(h, [](void *data) {
         QMetaObject::invokeMethod(static_cast<Player *>(data), "drainEvents", Qt::QueuedConnection);
@@ -91,7 +94,11 @@ void Player::number(const char *name, double value) {
     if (m_core->handle) mpv_set_property_async(m_core->handle, 0, name, MPV_FORMAT_DOUBLE, &value);
 }
 void Player::open(const QString &url, double start) {
+    if (!m_qualityReload) mpv_set_property_string(m_core->handle, "options/hls-bitrate", "2500000");
+    m_qualityReload = false;
     endHold(); m_error.clear(); m_loaded = false; m_duration = 0; m_position = 0;
+    m_url = url; m_paused = false; m_eof = false; m_loadSpeed = 0; m_buffered = 0;
+    m_cachePaused = false; m_coreIdle = true; m_buffering = QUrl(url).scheme().startsWith(QStringLiteral("http"));
     auto parsed = QUrl(url);
     QString path = parsed.isLocalFile() ? parsed.toLocalFile() : url;
     if (parsed.scheme().startsWith(QStringLiteral("http"))) {
@@ -103,8 +110,17 @@ void Player::open(const QString &url, double start) {
     int flag = 0; mpv_set_property_async(m_core->handle, 0, "pause", MPV_FORMAT_FLAG, &flag);
     emit stateChanged(); emit opened(url);
 }
-void Player::togglePause() { command({"cycle", "pause"}); }
-void Player::pause() { int value = 1; mpv_set_property_async(m_core->handle, 0, "pause", MPV_FORMAT_FLAG, &value); }
+void Player::togglePause() {
+    m_paused = !m_paused;
+    int value = m_paused; mpv_set_property_async(m_core->handle, 0, "pause", MPV_FORMAT_FLAG, &value);
+    m_buffering = !m_paused && !m_eof && (m_cachePaused || m_coreIdle); emit stateChanged();
+}
+void Player::pause() { m_paused = true; m_buffering = false; int value = 1; mpv_set_property_async(m_core->handle, 0, "pause", MPV_FORMAT_FLAG, &value); emit stateChanged(); }
+void Player::selectQuality(qint64 bitrate) {
+    const auto url = m_url; const auto position = m_position; const bool paused = m_paused;
+    mpv_set_property_string(m_core->handle, "options/hls-bitrate", bitrate <= 0 ? "max" : QByteArray::number(bitrate).constData());
+    m_qualityReload = true; open(url, position); if (paused) pause();
+}
 void Player::seek(double seconds) { command({"seek", QByteArray::number(std::max(0., seconds)), "absolute+exact"}); }
 void Player::skip(double seconds) { command({"seek", QByteArray::number(seconds), "relative+exact"}); }
 void Player::setSpeed(double value) { number("speed", std::clamp(value, .25, 4.)); }
@@ -148,11 +164,18 @@ void Player::drainEvents() {
                 else if (name == "duration") m_duration = value;
                 else if (name == "speed") m_speed = value;
                 else if (name == "volume") m_volume = value;
+                else if (name == "demuxer-cache-duration") m_buffered = value;
+            } else if (p->format == MPV_FORMAT_INT64) {
+                if (name == "cache-speed") m_loadSpeed = double(*static_cast<int64_t *>(p->data));
             } else if (p->format == MPV_FORMAT_FLAG) {
                 bool value = *static_cast<int *>(p->data) != 0;
-                if (name == "pause") m_paused = value;
-                else if (name == "paused-for-cache") m_buffering = value;
+                // User pause intent is owned by the controls. A cache underrun
+                // must not turn the play button into a manually paused state.
+                if (name == "paused-for-cache") m_cachePaused = value;
+                else if (name == "core-idle") m_coreIdle = value;
+                else if (name == "eof-reached") m_eof = value;
             } else if (p->format == MPV_FORMAT_STRING) m_decoder = QString::fromUtf8(*static_cast<char **>(p->data));
+            m_buffering = !m_paused && !m_eof && (m_cachePaused || (m_coreIdle && !m_url.isEmpty()));
             emit stateChanged();
         } else if (event->event_id == MPV_EVENT_FILE_LOADED) {
             m_loaded = true; emit stateChanged();
