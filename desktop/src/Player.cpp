@@ -5,6 +5,8 @@
 #include <QQuickOpenGLUtils>
 #include <QUrl>
 #include <QPointer>
+#include <QGuiApplication>
+#include <QKeyEvent>
 #include <algorithm>
 #include <mpv/render_gl.h>
 
@@ -51,6 +53,12 @@ public:
 };
 
 Player::Player(QQuickItem *parent) : QQuickFramebufferObject(parent), m_core(std::make_shared<PlayerCore>()) {
+    qApp->installEventFilter(this);
+    m_rightTimer.setSingleShot(true);
+    m_rightTimer.setInterval(250);
+    connect(&m_rightTimer, &QTimer::timeout, this, [this] {
+        if (m_rightDown && window()) beginHold(window()->property("holdSpeed").toDouble());
+    });
     setMirrorVertically(true);
     m_core->handle = mpv_create();
     auto h = m_core->handle;
@@ -98,14 +106,33 @@ void Player::open(const QString &url, double start) {
 void Player::togglePause() { command({"cycle", "pause"}); }
 void Player::pause() { int value = 1; mpv_set_property_async(m_core->handle, 0, "pause", MPV_FORMAT_FLAG, &value); }
 void Player::seek(double seconds) { command({"seek", QByteArray::number(std::max(0., seconds)), "absolute+exact"}); }
-void Player::skip(double seconds) { command({"seek", QByteArray::number(seconds), "relative"}); }
+void Player::skip(double seconds) { command({"seek", QByteArray::number(seconds), "relative+exact"}); }
 void Player::setSpeed(double value) { number("speed", std::clamp(value, .25, 4.)); }
 void Player::setVolume(double value) { number("volume", std::clamp(value, 0., 100.)); }
 void Player::beginHold(double speed) {
     if (m_holding || !m_loaded) return;
     m_savedSpeed = m_speed; m_holding = true; setSpeed(speed); emit stateChanged();
 }
-void Player::endHold() { if (m_holding) { m_holding = false; setSpeed(m_savedSpeed); emit stateChanged(); } }
+void Player::endHold() { m_rightTimer.stop(); m_rightDown = false; if (m_holding) { m_holding = false; setSpeed(m_savedSpeed); emit stateChanged(); } }
+bool Player::eventFilter(QObject *object, QEvent *event) {
+    if (object != window() || !window() || window()->property("page").toString() != QStringLiteral("player")) return false;
+    if (event->type() != QEvent::KeyPress && event->type() != QEvent::KeyRelease) return false;
+    auto key = static_cast<QKeyEvent *>(event);
+    if (key->key() != Qt::Key_Right) return false;
+    if (!m_rightDown) {
+        for (auto focus = window()->activeFocusItem(); focus; focus = focus->parentItem())
+            if (focus->inherits("QQuickTextInput") || focus->inherits("QQuickTextEdit") || focus->inherits("QQuickPopupItem")) return false;
+    }
+    if (key->isAutoRepeat()) return true;
+    if (event->type() == QEvent::KeyPress) {
+        if (!m_rightDown) { m_rightDown = true; m_rightTimer.start(); }
+    } else if (m_rightDown) {
+        bool wasHold = m_holding;
+        endHold();
+        if (!wasHold && m_loaded) skip(5);
+    }
+    key->accept(); return true;
+}
 void Player::setHardware(bool enabled) { endHold(); command({"set", "hwdec", enabled ? "auto-safe" : "no"}); }
 void Player::setAspect(const QString &aspect) { command({"set", "video-aspect-override", aspect.toUtf8()}); }
 void Player::drainEvents() {

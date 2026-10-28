@@ -34,12 +34,12 @@ ApplicationWindow {
     property string keyword: ""
     property int selectedLine: 0
     property int selectedEpisode: 0
-    property color bg: ["#101a17", "#101117", "#f3eee4", "#081610"][theme]
-    property color panel: ["#18241f", "#1b1d28", "#fffcf6", "#0d2117"][theme]
-    property color raised: ["#23332b", "#282b3b", "#e9dfd0", "#153522"][theme]
-    property color ink: ["#f0f0e7", "#ececfa", "#3e342a", "#b2ffb3"][theme]
-    property color muted: ["#92a297", "#989ab0", "#8e7e6c", "#62a575"][theme]
-    property color accent: ["#ffb36b", "#a7a6ff", "#ae633d", "#80ef95"][theme]
+    property color bg: ["#111215", "#101117", "#f3eee4", "#081610"][theme]
+    property color panel: ["#18191e", "#1b1d28", "#fffcf6", "#0d2117"][theme]
+    property color raised: ["#272930", "#282b3b", "#e9dfd0", "#153522"][theme]
+    property color ink: ["#f3f4f7", "#ececfa", "#3e342a", "#b2ffb3"][theme]
+    property color muted: ["#9195a2", "#989ab0", "#8e7e6c", "#62a575"][theme]
+    property color accent: ["#ffae70", "#a7a6ff", "#ae633d", "#80ef95"][theme]
     property var nav: [{key:"home",icon:"⌂",name:"发现影片"},{key:"player",icon:"▷",name:"正在播放"},{key:"downloads",icon:"↓",name:"离线下载"},{key:"favorites",icon:"♡",name:"我的收藏"},{key:"history",icon:"◷",name:"观看历史"},{key:"marks",icon:"◇",name:"喜欢的片刻"}]
     function time(value) { let s = Math.max(0, Math.floor(value || 0)); return (s >= 3600 ? Math.floor(s/3600) + ":" : "") + String(Math.floor(s/60)%60).padStart(2,"0") + ":" + String(s%60).padStart(2,"0") }
     function toggleFull() { player.endHold(); if (full) showNormal(); else showFullScreen() }
@@ -69,7 +69,6 @@ ApplicationWindow {
     Timer { id: holdTimer; interval: 180; onTriggered: player.beginHold(win.holdSpeed) }
     Shortcut { sequence: "Space"; enabled: win.page === "player" && !urlDialog.opened && !detailDialog.opened; onActivated: player.togglePause() }
     Shortcut { sequence: "Left"; enabled: win.page === "player"; onActivated: player.skip(-5) }
-    Shortcut { sequence: "Right"; enabled: win.page === "player"; onActivated: player.skip(5) }
     Shortcut { sequence: "Up"; enabled: win.page === "player"; onActivated: player.setVolume(player.volume + 5) }
     Shortcut { sequence: "Down"; enabled: win.page === "player"; onActivated: player.setVolume(player.volume - 5) }
     Shortcut { sequence: "F"; enabled: win.page === "player"; onActivated: win.toggleFull() }
@@ -87,9 +86,9 @@ ApplicationWindow {
                 RowLayout {
                     Layout.topMargin: 12; Layout.bottomMargin: 34; spacing: 12
                     Image { source: "qrc:/design/app-icon/sstv.png"; Layout.preferredWidth: 42; Layout.preferredHeight: 42; sourceSize.width: 84; sourceSize.height: 84 }
-                    Column { spacing: 2; Text { text: "松鼠TV"; color: win.ink; font.pixelSize: 20; font.bold: true }  Text { text: "让好故事，留久一点"; color: win.muted; font.pixelSize: 10 } }
+                    Column { spacing: 2; Text { text: "松鼠TV"; color: win.ink; font.pixelSize: 20; font.bold: true }  Text { text: "SQUIRREL PLAYER"; color: win.muted; font.pixelSize: 10 } }
                 }
-                Text { text: "你的放映室"; color: win.muted; font.pixelSize: 11; Layout.leftMargin: 12; Layout.bottomMargin: 6 }
+                Text { text: "媒体库"; color: win.muted; font.pixelSize: 11; Layout.leftMargin: 12; Layout.bottomMargin: 6 }
                 Repeater {
                     model: win.nav
                     delegate: Rectangle {
@@ -108,7 +107,7 @@ ApplicationWindow {
                 Rectangle { Layout.fillWidth: true; height: 1; color: win.raised; Layout.bottomMargin: 8 }
                 PillButton { text: "＋  打开本地视频"; Layout.fillWidth: true; ink: win.ink; fill: win.raised; onClicked: fileDialog.open() }
                 PillButton { text: "⚙  偏好与片源"; Layout.fillWidth: true; ink: win.muted; fill: "transparent"; onClicked: settingsDrawer.open() }
-                Text { text: "WINDOWS  /  0.1 PREVIEW"; color: win.muted; font.pixelSize: 9; Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 8 }
+                Text { text: "WINDOWS  /  0.1.1 PREVIEW"; color: win.muted; font.pixelSize: 9; Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 8 }
             }
         }
         ColumnLayout {
@@ -180,7 +179,7 @@ ApplicationWindow {
                     anchors { fill: parent; leftMargin: win.full ? 0 : 24; rightMargin: win.full ? 0 : 24; bottomMargin: win.full ? 0 : 20 }  spacing: 14
                     visible: win.page === "player"
                     Rectangle {
-                        id: stage; objectName: "videoStage"; Layout.fillWidth: true; Layout.fillHeight: true; color: "#050706"; clip: true
+                        id: stage; objectName: "videoStage"; Layout.fillWidth: true; Layout.fillHeight: true; color: "#08090b"; clip: true
                         VideoPlayer { id: player; objectName: "videoPlayer"; anchors.fill: parent; onFinished: win.nextEpisode() }
                         Column { anchors.centerIn: parent; spacing: 18; visible: !player.loaded && !player.buffering
                             Image { source: "qrc:/design/app-icon/sstv.png"; width: 90; height: 90; anchors.horizontalCenter: parent.horizontalCenter; sourceSize.width: 180; sourceSize.height: 180 }
@@ -214,25 +213,43 @@ ApplicationWindow {
                             Text { id: errorText; anchors { fill: parent; margins: 20 }  text: "播放失败\n" + player.error + "\n可尝试切换线路或软解码"; color: "#ffcfb2"; wrapMode: Text.WordWrap }
                         }
                         Rectangle {
-                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }  height: 150
+                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }  height: 126
                             opacity: win.controlsShown || player.paused || !player.loaded ? 1 : 0
                             visible: opacity > 0
                             Behavior on opacity { NumberAnimation { duration: win.reduced ? 0 : 160 } }
-                            gradient: Gradient { GradientStop { position: 0; color: "transparent" } GradientStop { position: 1; color: "#ed080b09" } }
+                            gradient: Gradient { GradientStop { position: 0; color: "transparent" } GradientStop { position: 1; color: "#f008090c" } }
                             ColumnLayout {
-                                anchors { fill: parent; leftMargin: 22; rightMargin: 22; bottomMargin: 14; topMargin: 40 }  spacing: 4
-                                Text { text: (Backend.current.name || "松鼠TV") + "  " + (Backend.current.episodeName || ""); color: "#f0f0e7"; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
-                                Slider { id: seekBar; Layout.fillWidth: true; from: 0; to: Math.max(1, player.duration); value: player.position; onMoved: player.seek(value); enabled: player.loaded }
+                                anchors { fill: parent; leftMargin: 22; rightMargin: 22; bottomMargin: 14; topMargin: 25 }  spacing: 4
+                                Text { text: (Backend.current.name || "松鼠TV") + "  " + (Backend.current.episodeName || ""); color: "#f3f4f7"; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
+                                Slider {
+                                    id: seekBar; Layout.fillWidth: true; implicitHeight: 20
+                                    from: 0; to: Math.max(1, player.duration); value: player.position
+                                    onMoved: player.seek(value); enabled: player.loaded
+                                    background: Rectangle {
+                                        x: seekBar.leftPadding; y: (seekBar.height-height)/2
+                                        width: seekBar.availableWidth; height: seekBar.hovered || seekBar.pressed ? 4 : 3; radius: 2; color: "#55ffffff"
+                                        Rectangle { width: parent.width * seekBar.visualPosition; height: parent.height; radius: 2; color: win.accent }
+                                    }
+                                    handle: Rectangle {
+                                        x: seekBar.leftPadding + seekBar.visualPosition * (seekBar.availableWidth-width); y: (seekBar.height-height)/2
+                                        width: 10; height: 10; radius: 5; color: "white"; visible: seekBar.hovered || seekBar.pressed
+                                    }
+                                }
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 12
-                                    PillButton { text: player.paused ? "▶" : "Ⅱ"; compact: true; ink: "#f0f0e7"; fill: "#25322b"; onClicked: player.togglePause() }
-                                    PillButton { text: "下一集"; compact: true; ink: "#f0f0e7"; fill: "#25322b"; onClicked: win.nextEpisode() }
+                                    PillButton { text: player.paused ? "▶" : "Ⅱ"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: player.togglePause() }
+                                    PillButton { text: "下一集"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: win.nextEpisode() }
                                     Text { text: win.time(player.position) + " / " + win.time(player.duration); color: "#c0cbbf"; font.pixelSize: 11 }
                                     Item { Layout.fillWidth: true }
-                                    ComboBox { model: ["0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×", "3×"]; currentIndex: 2; implicitWidth: 88; implicitHeight: 32; onActivated: player.setSpeed([.5,.75,1,1.25,1.5,2,3][currentIndex]) }
-                                    Slider { from: 0; to: 100; value: player.volume; implicitWidth: 95; onMoved: player.setVolume(value) }
-                                    PillButton { text: win.theater ? "退出剧场" : "剧场"; compact: true; ink: "#f0f0e7"; fill: "#25322b"; onClicked: win.theater = !win.theater }
-                                    PillButton { text: win.full ? "退出全屏" : "全屏"; compact: true; ink: "#f0f0e7"; fill: "#25322b"; onClicked: win.toggleFull() }
+                                    PillButton { text: player.speed.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + "×"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: speedMenu.popup() }
+                                    Menu { id: speedMenu; Repeater { model: [.5,.75,1,1.25,1.5,2,3]; delegate: MenuItem { required property var modelData; text: modelData + "×"; checkable: true; checked: Math.abs(player.speed-modelData)<.01; onTriggered: player.setSpeed(modelData) } } }
+                                    Text { text: "音量"; color: "#adb0bb"; font.pixelSize: 11 }
+                                    Slider { id: volumeBar; from: 0; to: 100; value: player.volume; implicitWidth: 75; onMoved: player.setVolume(value)
+                                        background: Rectangle { x: volumeBar.leftPadding; y: (volumeBar.height-height)/2; width: volumeBar.availableWidth; height: 3; radius: 2; color: "#55ffffff"; Rectangle { width: parent.width*volumeBar.visualPosition; height: 3; color: "#e3e4eb"; radius: 2 } }
+                                        handle: Rectangle { x: volumeBar.leftPadding+volumeBar.visualPosition*(volumeBar.availableWidth-width); y: (volumeBar.height-height)/2; width: 8; height: 8; radius: 4; color: "white" }
+                                    }
+                                    PillButton { text: win.theater ? "退出剧场" : "剧场"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: win.theater = !win.theater }
+                                    PillButton { text: win.full ? "退出全屏" : "全屏"; compact: true; ink: "#f3f4f7"; fill: "transparent"; onClicked: win.toggleFull() }
                                 }
                             }
                         }
@@ -240,7 +257,7 @@ ApplicationWindow {
                     RowLayout {
                         visible: !win.full; Layout.fillWidth: true
                         Text { text: player.decoder && player.decoder !== "no" ? "硬件解码 · " + player.decoder : "软件解码"; color: win.muted; font.pixelSize: 11 }
-                        Text { text: "右键按住 " + win.holdSpeed + "× · 双击全屏 · 空格暂停"; color: win.muted; font.pixelSize: 11; Layout.leftMargin: 8 }
+                        Text { text: "长按 → / 鼠标右键 " + win.holdSpeed + "× · 双击全屏 · 空格暂停"; color: win.muted; font.pixelSize: 11; Layout.leftMargin: 8 }
                         Item { Layout.fillWidth: true }
                         PillButton { text: "♡ 收藏"; compact: true; enabled: !!Backend.current.api; ink: win.ink; fill: win.panel; onClicked: Backend.favorite(Backend.current) }
                         PillButton { text: "◇ 标记此刻"; compact: true; enabled: player.loaded; ink: win.ink; fill: win.panel; onClicked: Backend.mark(player.position) }
@@ -338,10 +355,10 @@ ApplicationWindow {
                 width: settingsDrawer.width - 52; spacing: 16
                 Text { text: "偏好与片源"; color: win.ink; font.pixelSize: 24; font.bold: true }
                 Text { text: "外观"; color: win.accent; font.pixelSize: 13; Layout.topMargin: 12 }
-                ComboBox { Layout.fillWidth: true; model: ["林间影院", "极光漫游", "晴日手帖", "像素终端"]; currentIndex: win.theme; onActivated: { win.theme = currentIndex; Backend.setSetting("theme", currentIndex) } }
+                ComboBox { Layout.fillWidth: true; model: ["曜石影院", "极光漫游", "晴日手帖", "像素终端"]; currentIndex: win.theme; onActivated: { win.theme = currentIndex; Backend.setSetting("theme", currentIndex) } }
                 Switch { text: "减少动画"; checked: win.reduced; onToggled: { win.reduced = checked; Backend.setSetting("reducedMotion", checked) } }
                 Text { text: "播放"; color: win.accent; font.pixelSize: 13 }
-                RowLayout { Text { text: "右键按住临时倍速"; color: win.ink; font.pixelSize: 13 }  Item { Layout.fillWidth: true }  ComboBox { model: ["2×", "2.5×", "3×", "4×"]; currentIndex: [2,2.5,3,4].indexOf(win.holdSpeed); onActivated: { win.holdSpeed = [2,2.5,3,4][currentIndex]; Backend.setSetting("holdSpeed", win.holdSpeed) } } }
+                RowLayout { Text { text: "长按 → / 鼠标右键倍速"; color: win.ink; font.pixelSize: 13 }  Item { Layout.fillWidth: true }  ComboBox { model: ["2×", "2.5×", "3×", "4×"]; currentIndex: [2,2.5,3,4].indexOf(win.holdSpeed); onActivated: { win.holdSpeed = [2,2.5,3,4][currentIndex]; Backend.setSetting("holdSpeed", win.holdSpeed) } } }
                 Switch { text: "优先硬件解码"; checked: win.hardware; onToggled: { win.hardware = checked; player.setHardware(checked); Backend.setSetting("hardware", checked) } }
                 Text { text: "片源管理"; color: win.accent; font.pixelSize: 13 }
                 TextField { id: sourceName; Layout.fillWidth: true; placeholderText: "片源名称" }

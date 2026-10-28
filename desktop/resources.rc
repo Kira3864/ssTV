@@ -1,7 +1,7 @@
 IDI_ICON1 ICON "../design/app-icon/sstv.ico"
 1 VERSIONINFO
- FILEVERSION 0,1,0,0
- PRODUCTVERSION 0,1,0,0
+ FILEVERSION 0,1,1,0
+ PRODUCTVERSION 0,1,1,0
  FILETYPE 0x1L
 BEGIN
  BLOCK "StringFileInfo"
@@ -9,9 +9,9 @@ BEGIN
   BLOCK "040904B0"
   BEGIN
    VALUE "FileDescription", "Squirrel TV"
-   VALUE "FileVersion", "0.1.0"
+   VALUE "FileVersion", "0.1.1"
    VALUE "ProductName", "松鼠TV"
-   VALUE "ProductVersion", "0.1.0"
+   VALUE "ProductVersion", "0.1.1"
   END
  END
  BLOCK "VarFileInfo"

@@ -7,7 +7,7 @@
 [Setup]
 AppId={{8CE21109-970A-47A8-8508-A0B864E5399B}
 AppName=松鼠TV
-AppVersion=0.1.0
+AppVersion=0.1.1
 AppPublisher=SquirrelTV
 DefaultDirName={localappdata}\Programs\SquirrelTV
 DefaultGroupName=松鼠TV
@@ -15,7 +15,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
-OutputBaseFilename=ssTV-0.1.0-Windows-x64-Setup
+OutputBaseFilename=ssTV-0.1.1-Windows-x64-Setup
 SetupIconFile=..\..\design\app-icon\sstv.ico
 UninstallDisplayIcon={app}\SquirrelTV.exe
 Compression=lzma2/ultra64

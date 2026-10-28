@@ -1,6 +1,7 @@
 #pragma once
 #include <QQuickFramebufferObject>
 #include <memory>
+#include <QTimer>
 #include <mpv/client.h>
 
 struct PlayerCore {
@@ -53,6 +54,9 @@ signals:
 private slots:
     void drainEvents();
 private:
+    bool eventFilter(QObject *object, QEvent *event) override;
+    QTimer m_rightTimer;
+    bool m_rightDown = false;
     void command(const QList<QByteArray> &args);
     void number(const char *name, double value);
     std::shared_ptr<PlayerCore> m_core;

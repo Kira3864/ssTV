@@ -35,6 +35,17 @@ private slots:
         QTest::mouseRelease(window, Qt::RightButton, Qt::NoModifier, point());
         QTRY_VERIFY(!player->holding()); QTRY_VERIFY(qAbs(player->speed() - 1.25) < .01);
     }
+    void arrowTapSeeksAndHoldRestores() {
+        player->pause(); QTRY_VERIFY(player->paused()); player->seek(2); QTRY_VERIFY(qAbs(player->position()-2)<.5);
+        QTest::keyClick(window, Qt::Key_Right);
+        QTRY_VERIFY(qAbs(player->position()-7)<.5);
+        player->setSpeed(1.25); QTRY_VERIFY(qAbs(player->speed()-1.25)<.01);
+        QTest::keyPress(window, Qt::Key_Right); QTest::qWait(350);
+        QTRY_VERIFY(player->holding()); QTRY_VERIFY(qAbs(player->speed()-3)<.01);
+        QTest::keyRelease(window, Qt::Key_Right);
+        QTRY_VERIFY(!player->holding()); QTRY_VERIFY(qAbs(player->speed()-1.25)<.01);
+        QVERIFY2(qAbs(player->position()-7)<.5, qPrintable(QString::number(player->position())));
+    }
     void releasingOutsideVideoAlsoRestoresSpeed() {
         QTest::mousePress(window, Qt::RightButton, Qt::NoModifier, point());
         QTest::qWait(250); QTRY_VERIFY(player->holding());

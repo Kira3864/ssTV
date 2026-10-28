@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(SquirrelTV VERSION 0.1.0 LANGUAGES CXX)
+project(SquirrelTV VERSION 0.1.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network OpenGL Sql)
@@ -8,7 +8,7 @@ set(MPV_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.deps/mpv" CACHE PATH "libmpv developm
 find_path(MPV_INCLUDE_DIR mpv/client.h PATHS "${MPV_ROOT}/include" REQUIRED NO_DEFAULT_PATH)
 find_library(MPV_LIBRARY NAMES mpv libmpv PATHS "${MPV_ROOT}" "${MPV_ROOT}/lib" REQUIRED NO_DEFAULT_PATH)
 qt_add_executable(SquirrelTV WIN32 src/main.cpp src/Player.cpp src/Player.h src/Backend.cpp src/Backend.h resources.rc)
-qt_add_qml_module(SquirrelTV URI SquirrelTV VERSION 1.0 QML_FILES qml/Main.qml qml/PillButton.qml qml/VideoCard.qml)
+qt_add_qml_module(SquirrelTV URI SquirrelTV VERSION 1.0 NO_IMPORT_SCAN QML_FILES qml/Main.qml qml/PillButton.qml qml/VideoCard.qml)
 qt_add_resources(SquirrelTV artwork PREFIX "/" BASE "${CMAKE_CURRENT_SOURCE_DIR}/.." FILES
     ../design/app-icon/sstv.png resources/sources.json)
 target_include_directories(SquirrelTV PRIVATE "${MPV_INCLUDE_DIR}")
