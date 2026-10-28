@@ -33,13 +33,10 @@ with zipfile.ZipFile(ROOT / 'dist/ssTV-0.1.1-Windows-x64-Portable.zip') as z:
     assert all('/data/' not in '/'+n and not n.endswith('startup.log') for n in z.namelist())
     z.extractall(portable)
 report = {'portable':smoke(portable)}
-installed = OUT / 'installed'
-setup = ROOT / 'dist/ssTV-0.1.1-Windows-x64-Setup.exe'
-subprocess.run([str(setup), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/TASKS=', '/DIR='+str(installed)], timeout=120, check=True)
-try:
-    report['installed'] = smoke(installed)
-finally:
-    subprocess.run([str(installed / 'unins000.exe'), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], timeout=60, check=True)
+# Test the exact installer payload without replacing an existing user's
+# uninstall registration or closing their running installation.
+installed = sorted((ROOT / 'dist/stage').glob('*/installed'))[-1]
+report['installer_payload'] = smoke(installed)
 report['sizes'] = {p.name:p.stat().st_size for p in (ROOT / 'dist').iterdir() if p.suffix in ('.exe','.zip')}
 (OUT / 'results.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
 print(json.dumps(report,indent=2))
